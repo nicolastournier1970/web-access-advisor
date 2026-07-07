@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Protected area — WAA Fixture Site</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+    .card { border: 1px solid #ccc; padding: 1rem; margin-top: 1rem; }
+  </style>
+  <script>
+    // Client-side login wall: without the cookie you are bounced to login.html.
+    if (!/(?:^|;\s*)waa_session=1(?:;|$)/.test(document.cookie)) {
+      location.replace('login.html');
+    }
+  </script>
+</head>
+<body>
+  <nav aria-label="Main">
+    <a href="index.html" data-testid="nav-home">Home</a>
+    <a href="form.html" data-testid="nav-form">Form</a>
+    <a href="protected.html" data-testid="nav-protected">Protected area</a>
+  </nav>
+
+  <h1 data-testid="protected-heading">Member dashboard</h1>
+  <p>You are signed in. This page only renders with the <code>waa_session</code> cookie.</p>
+
+  <div class="card">
+    <h2>Your records</h2>
+    <!-- intentional violation: table without headers -->
+    <table data-testid="records-table">
+      <tr><td>2026-07-01</td><td>Report A</td></tr>
+      <tr><td>2026-07-05</td><td>Report B</td></tr>
+    </table>
+    <!-- intentional violation: link with no discernible text -->
+    <a href="index.html" data-testid="empty-link"></a>
+  </div>
+
+  <button data-testid="logout" onclick="document.cookie='waa_session=; path=/; max-age=0'; location.href='index.html';">Sign out</button>
+</body>
+</html>

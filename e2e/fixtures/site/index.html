@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WAA Fixture Site</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+    nav a { margin-right: 1rem; }
+    .low-contrast { color: #b9b9b9; background: #ffffff; } /* intentional: fails contrast */
+    .card { border: 1px solid #ccc; padding: 1rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav aria-label="Main">
+    <a href="index.html" data-testid="nav-home">Home</a>
+    <a href="form.html" data-testid="nav-form">Form</a>
+    <a href="protected.html" data-testid="nav-protected">Protected area</a>
+  </nav>
+
+  <h1>Web Access Advisor fixture site</h1>
+  <p>A deterministic offline site with <strong>intentional accessibility violations</strong> used by the e2e suite. Do not fix them.</p>
+
+  <!-- intentional violation: image without alt -->
+  <img src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" width="80" height="40" />
+
+  <!-- intentional violation: low contrast text -->
+  <p class="low-contrast">This text intentionally fails WCAG contrast requirements.</p>
+
+  <div class="card">
+    <h2>Getting around</h2>
+    <p>The <a href="protected.html">protected area</a> requires a login (cookie <code>waa_session</code>). The <a href="login.html">login page</a> sets it.</p>
+    <!-- intentional violation: button with no accessible name -->
+    <button data-testid="mystery-button"></button>
+  </div>
+</body>
+</html>

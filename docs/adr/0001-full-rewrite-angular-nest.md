@@ -21,7 +21,7 @@ Rewrite the application end to end, in the same repository, on branch `rewrite/a
 - **Engine**: the Playwright recording/replay/analysis engine is refactored into a clean library `@waa/core` (`packages/core`) with no HTTP framework imports.
 - **Contracts**: a new `@waa/shared` package (`packages/shared`) is the single source of truth for API/SSE/file-format schemas (see ADR 0004).
 
-The legacy app keeps running from `src/` + `server/` during the rewrite and is deleted at cutover; the last pre-deletion commit is tagged `v1-legacy`.
+The legacy app keeps running from `src/` + `server/` during the rewrite and is removed at cutover **on the rewrite branch only** (confirmed 2026-07-08): the pre-deletion commit is tagged `v1-legacy` and `main` retains the full v1 app, so nothing is lost from history.
 
 ## Consequences
 

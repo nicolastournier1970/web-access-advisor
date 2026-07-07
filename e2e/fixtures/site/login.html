@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in — WAA Fixture Site</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+    label, input, button { display: block; margin-top: .75rem; }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Sign in</h1>
+  <p>Any username with password <code>letmein</code> works. Sets the <code>waa_session</code> cookie and returns to the protected area.</p>
+
+  <form id="login" onsubmit="return doLogin(event)">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username" data-testid="username-input" />
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" data-testid="password-input" />
+
+    <button type="submit" data-testid="login-submit">Sign in</button>
+    <p id="login-error" class="error" role="alert" hidden data-testid="login-error">Wrong password. Use “letmein”.</p>
+  </form>
+
+  <script>
+    function doLogin(event) {
+      event.preventDefault();
+      var pw = document.getElementById('password').value;
+      if (pw === 'letmein') {
+        // 1-hour session cookie; the "server" (serve.mjs) has no state — the cookie IS the session.
+        document.cookie = 'waa_session=1; path=/; max-age=3600';
+        location.href = 'protected.html';
+      } else {
+        document.getElementById('login-error').hidden = false;
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>

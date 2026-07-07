@@ -23,7 +23,7 @@ The v1 implementation (React 18 + Express + `packages/core`) works but accumulat
 
 1. **Full rewrite**: Angular (latest stable — standalone components, signals, zoneless change detection, OnPush, typed forms, `inject()`) + **NestJS** backend. Engine refactored into a clean workspace library. (Angular re-confirmed over Vue after explicit comparison — see ADR 0001.)
 2. **UI**: Tailwind CSS + **Angular CDK** primitives only (dialog/overlay, focus trap, LiveAnnouncer, a11y). No Material/PrimeNG. The tool's own UI must be exemplary on accessibility (ADR 0007).
-3. **Repo**: same repo, replace in place — workspace layout `apps/*` + `packages/*` on branch `refactor`; legacy app stays runnable until cutover, then is deleted (tag `v1-legacy` first).
+3. **Repo**: same repo — workspace layout `apps/*` + `packages/*` on branch `refactor`. At cutover the legacy app is removed **on this branch only** (user-confirmed 2026-07-08): the pre-deletion commit is tagged `v1-legacy` and `main` still carries the full v1 app, so recovery is one `git checkout v1-legacy` away.
 4. **Auth headline**: pause-for-login during replay via a first-class auth-checkpoint state machine (ADR 0005).
 
 Supporting decisions (each has an ADR):
@@ -161,7 +161,7 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 | 4 | Angular shell + recording | workspace, zoneless, Tailwind theme port, UI kit + CDK plumbing, routes/stores/clients; setup + record pages | L | record→stop journey on new stack |
 | 5 | Analysis + results UI | analyze page (SSE progress), results page (findings/axe/screenshots/print), sessions browser | M | component tests + vitest-axe |
 | 6 | Auth v2 | recording auth segments end-to-end; replay pause-for-login end-to-end | L | fixture-login e2e journey green |
-| 7 | Cutover | delete `src/` + `server/` + root Vite configs; new root scripts; tag `v1-legacy` | S | full manual verification pass |
+| 7 | Cutover | tag `v1-legacy` FIRST, then on this branch delete `src/`, `server/`, legacy `packages/core`/`packages/cli` leftovers, root Vite/Tailwind/PostCSS configs and legacy deps; new root scripts (`npm run dev` = Nest + Angular); rewrite README | S | full manual verification pass; `git checkout v1-legacy` restores v1 |
 | 8 | Docs, CLI, CI | docs set (below), JSDoc pass, CLI re-port over `@waa/core`, GitHub Actions | M | — |
 
 ## 9. Documentation deliverables (Phase 8, drafted continuously)
@@ -192,18 +192,23 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 
 - [x] **Phase 0 — Scaffold** (commit `073edbd`): workspaces extended to `apps/*`; `tsconfig.base.json` (`@waa/shared`, `@waa/core`); flat ESLint with boundary rules; Prettier; ADRs 0001–0007; `config/auth-domains.json` seeded with the four previously hardcoded domains.
 - [x] **Phase 1 — Shared contracts**: `packages/shared` (recording v1/v2 + auth checkpoints + target candidates, manifest, analysis/axe, API DTOs, SSE union, error/health envelopes, auth-domains config). 17/17 tests — every real `recording.json`/`manifest.json` under `snapshots/` parses. An adversarial 3-lens review (legacy fidelity / zod v4 semantics / plan coverage) found and fixed: `wcagReference` is an object not a string (blocker — would have broken the whole results parse); LLM debug logs made representable; shadow-DOM axe targets widened; LLM-origin `impact`/`score` made degrade-not-fail; error envelope + health schemas added; retroactive auth-segment fields added (`suspectedAtStep`, `fromStep`); `z.url()` restricted to http/https (was accepting `javascript:`/`file:`); enum dedup.
-- [ ] Phase 2 — Core engine refactor
+- [ ] **Phase 2 — Core engine refactor** *(in progress)*:
+  - [x] 2a Skeleton: `packages/engine` (`@waa/core`), `engine-types.ts` internal contracts (RecorderEvent/AnalyzeEvent unions, RecorderHandle, LlmProvider, AnalyzeControl).
+  - [x] 2b Wave 1 leaf modules (commit `e982a7b`, 227 tests): storage (v1→v2 loader — all 59 real recordings upgrade), auth (config-driven classification, same-host fix), selector engine (ranked candidates, jsdom-tested), AuthCheckpointMachine (pure, full transition table), DOM-change detector + sensitive-value scrubber, LLM providers (undici REST Gemini, stub), browser detection (cookie-reading dropped).
+  - [ ] 2c Wave 2 *(running)*: recorder + injected script (redaction at source, auth segments) | replayer (candidate fallback, `redacted-credential` skip) + snapshotter (scrub-before-write). Real-browser smoke tests required.
+  - [ ] 2d Wave 3: analyzer orchestration + manifest-builder (step-join fix) + batching; barrel builds.
+  - [ ] 2e Parity harness vs golden sessions.
 - [ ] Phase 3 — NestJS API
 - [ ] Phase 4 — Angular shell + recording flow
 - [ ] Phase 5 — Analysis + results UI
 - [ ] Phase 6 — Auth v2
-- [ ] Phase 7 — Cutover
+- [ ] Phase 7 — Cutover (tag `v1-legacy`, then delete legacy on this branch; `main` unaffected)
 - [ ] Phase 8 — Docs, CLI, CI
 
 ### Notes / deviations
 - Branch is `refactor` (created in VS Code) rather than the originally planned `rewrite/angular-nest`.
 - Zod v4 gotcha found by tests: `.refine()` can't see unknown keys (stripped first) and `z.undefined()` makes a key required — the v1 "no formatVersion" rule uses `z.never().optional()`.
-- **Two zod majors coexist in the workspace** until cutover: root hoists zod 3.x via `auto-playwright`→`openai`; `packages/shared` uses zod 4.x. Every new package that imports zod (`packages/core`, `apps/api`, `apps/web`) MUST declare `"zod": "^4.0.0"` in its own `package.json`, and `apps/api` must use a nestjs-zod release with a zod ^4 peer range. Add a CI check (`npm ls zod`) at Phase 8; the v3 copy disappears with `auto-playwright` at cutover.
+- **Two zod majors coexist in the workspace** until cutover: root hoists zod 3.x via `auto-playwright`→`openai`; `packages/shared` uses zod 4.x. Every new package that imports zod (`packages/core`, `apps/api`, `apps/web`) MUST declare `"zod": "^4.0.0"` in its own `package.json`, and `apps/api` must use a nestjs-zod release with a zod ^4 peer range. Add a CI check (`npm ls zod`) at Phase 8; the hoisted zod 3 copy disappears with `auto-playwright` in the Phase 7 cutover commit.
 - There is deliberately no standalone `POST /:id/replay` endpoint — replay only runs as the first stage of an analysis; the auth continue/cancel routes act on the embedded replay.
 - Client rule: omit empty optional request fields; the Angular api-client strips `null`/`undefined` before serializing (zod defaults absorb only absent keys, not `null`).
-- The new engine lives in **`packages/engine`** (package name `@waa/core`), not `packages/core` as originally planned: the legacy server resolves `@web-access-advisor/core` from `packages/core` at runtime, and gutting it would break the legacy app before cutover. The directory can be renamed to `packages/core` in the Phase 7 cleanup commit. Also: legacy `npm run build`/`build:server` must NOT be run on this branch — the legacy app runs from the prebuilt `server/dist`.
+- The new engine lives in **`packages/engine`** (package name `@waa/core`), not `packages/core` as originally planned: the legacy server resolves `@web-access-advisor/core` from `packages/core` at runtime, and gutting it would break the legacy app before cutover. `packages/engine` stays the engine's home even after the legacy `packages/core` is deleted at cutover (no rename churn). Also: legacy `npm run build`/`build:server` must NOT be run on this branch — the legacy app runs from the prebuilt `server/dist`.
