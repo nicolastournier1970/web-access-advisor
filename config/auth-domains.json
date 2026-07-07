@@ -1,0 +1,27 @@
+{
+  "$schema": "./auth-domains.schema.json",
+  "comment": "Domain patterns used to classify navigation as authentication-related. Patterns are matched as case-insensitive substrings of the hostname. Edit this file to adapt the tool to your identity providers - no code change required.",
+  "authDomains": [
+    "auth.identity.gov.au",
+    "sts.development.health.gov.au",
+    "myid.gov.au",
+    "login.microsoftonline.com",
+    "login.live.com",
+    "accounts.google.com",
+    "okta.com",
+    "auth0.com"
+  ],
+  "clientDomains": [
+    "hbsp-test.powerappsportals.com"
+  ],
+  "authPathPatterns": [
+    "/login",
+    "/signin",
+    "/sign-in",
+    "/auth",
+    "/oauth",
+    "/sso",
+    "/account/logon",
+    "/unauthorized"
+  ]
+}
