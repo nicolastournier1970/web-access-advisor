@@ -22,8 +22,8 @@
     "paths": {
       "@waa/shared": ["packages/shared/src/index.ts"],
       "@waa/shared/*": ["packages/shared/src/*"],
-      "@waa/core": ["packages/core/src/index.ts"],
-      "@waa/core/*": ["packages/core/src/*"]
+      "@waa/core": ["packages/engine/src/index.ts"],
+      "@waa/core/*": ["packages/engine/src/*"]
     }
   }
 }
