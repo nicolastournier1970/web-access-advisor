@@ -402,6 +402,33 @@ class AnalysisRun {
         if (resolution !== 'resumed') return;
         continue; // checkpoint consumed — re-enter this step from the top
       }
+      if (checkpoint !== undefined) {
+        // Validated saved login covers the session: skip the pause but consume
+        // the checkpoint so a retry of this step doesn't re-offer it.
+        this.machine.consumeCheckpoint(checkpoint.id);
+      }
+
+      // Recorded auth-redirect navigations (the bounce INTO the login page)
+      // must not be replayed when a saved login covers the upcoming
+      // checkpoint: they would drive the authenticated browser back onto the
+      // login page and the next real action would fail there (caught by the
+      // Phase 6 fixture gate, journey C).
+      if (action.type === 'navigate' && this.hasValidStorageState) {
+        const covering = this.machine.pendingCheckpointCovering(step);
+        const url = action.url ?? '';
+        if (
+          covering !== undefined &&
+          (url === covering.loginUrl || isAuthUrl(url, this.options.authConfig))
+        ) {
+          outcomesByStep.set(step, {
+            step,
+            outcome: 'skipped',
+            detail: 'auth-redirect-covered-by-saved-login',
+          });
+          i += 1;
+          continue;
+        }
+      }
 
       this.progress('replaying-actions', `Replaying step ${step}: ${action.type}`, {
         currentStep: step,

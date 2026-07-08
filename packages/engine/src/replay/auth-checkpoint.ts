@@ -132,13 +132,45 @@ export class AuthCheckpointMachine {
   }
 
   /**
-   * The recorded checkpoint sitting after `step` that has not yet been
-   * consumed by a successful resume. Pure query — valid in any state.
+   * The unconsumed recorded checkpoint the replay is about to CROSS when it
+   * executes the action with this step number. A checkpoint "sits after"
+   * `afterStep`, so it is due before the first action with `step > afterStep`
+   * — NOT before re-executing `afterStep` itself (that would replay the
+   * pre-login bounce navigation again after sign-in and land the browser back
+   * on the login page; caught by the Phase 6 fixture-site gate). Pure query —
+   * valid in any state. A checkpoint after the final action is never due:
+   * there is nothing left to replay behind it.
    */
   checkpointDueAt(step: number): AuthCheckpoint | undefined {
     return this.#checkpoints.find(
-      (cp) => cp.afterStep === step && !this.#consumedCheckpointIds.has(cp.id),
+      (cp) => cp.afterStep < step && !this.#consumedCheckpointIds.has(cp.id),
     );
+  }
+
+  /**
+   * The first unconsumed checkpoint at or beyond this step — i.e. the login
+   * boundary the action at `step` leads INTO. Used by the replay to recognise
+   * recorded auth-redirect navigations (their URL matches this checkpoint's
+   * loginUrl) that must not be replayed when a saved login already covers the
+   * session. Pure query — valid in any state.
+   */
+  pendingCheckpointCovering(step: number): AuthCheckpoint | undefined {
+    return this.#checkpoints.find(
+      (cp) => cp.afterStep >= step && !this.#consumedCheckpointIds.has(cp.id),
+    );
+  }
+
+  /**
+   * Mark a recorded checkpoint consumed WITHOUT a pause/resume cycle. Used by
+   * the replay when a VALIDATED saved login already covers the session
+   * (docs/rewrite-plan.md §6 pause condition 1 not met): the checkpoint is
+   * skipped, and consuming it keeps {@link checkpointDueAt} truthful so a
+   * re-query of the same boundary offers the next unconsumed checkpoint (or
+   * nothing) instead of looping. Pure bookkeeping — no state transition,
+   * unknown ids are ignored, valid in any state.
+   */
+  consumeCheckpoint(checkpointId: string): void {
+    this.#consumedCheckpointIds.add(checkpointId);
   }
 
   /**

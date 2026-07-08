@@ -483,9 +483,11 @@ describe('runAnalysis (fakes)', () => {
     const required = await waitFor(() => ofType(h.events, 'auth-required')[0]);
     expect(required.reason).toBe('recorded-checkpoint');
     expect(required.checkpointId).toBe('cp1');
-    expect(required.pausedAtStep).toBe(2);
-    // Step 2 has NOT executed yet.
-    expect(h.page.clickCount).toBe(0);
+    // The checkpoint sits AFTER step 2: steps 1-2 replay first (they belong to
+    // the pre-login flow), the pause lands before step 3.
+    expect(required.pausedAtStep).toBe(3);
+    // Step 2 HAS executed; step 3 has not.
+    expect(h.page.clickCount).toBe(1);
 
     // Page is on the app (no auth URL, no password field) → validation passes.
     await expect(control.continueAuth()).resolves.toEqual({ ok: true });

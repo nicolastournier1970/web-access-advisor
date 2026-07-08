@@ -58,19 +58,23 @@ describe('AuthCheckpointMachine — initial state', () => {
 });
 
 describe('checkpointDueAt', () => {
-  it('returns the checkpoint whose afterStep matches and undefined otherwise', () => {
+  it('is due before the first action PAST afterStep, not before afterStep itself', () => {
+    // A checkpoint sits AFTER its step: pausing before re-executing the step
+    // itself would replay the pre-login bounce navigation after sign-in and
+    // land back on the login page (caught by the Phase 6 fixture gate).
     const { machine } = makeMachine([makeCheckpoint('acp_1', 3)]);
-    expect(machine.checkpointDueAt(3)?.id).toBe('acp_1');
     expect(machine.checkpointDueAt(2)).toBeUndefined();
-    expect(machine.checkpointDueAt(4)).toBeUndefined();
+    expect(machine.checkpointDueAt(3)).toBeUndefined();
+    expect(machine.checkpointDueAt(4)?.id).toBe('acp_1');
+    expect(machine.checkpointDueAt(9)?.id).toBe('acp_1');
   });
 
   it('does not offer the same checkpoint twice after a successful resume', () => {
     const { machine } = makeMachine([makeCheckpoint('acp_1', 3)]);
-    machine.pause({ ...PAUSE_INPUT, reason: 'recorded-checkpoint', pausedAtStep: 3, checkpointId: 'acp_1' });
+    machine.pause({ ...PAUSE_INPUT, reason: 'recorded-checkpoint', pausedAtStep: 4, checkpointId: 'acp_1' });
     machine.beginValidation();
     machine.validationSucceeded();
-    expect(machine.checkpointDueAt(3)).toBeUndefined();
+    expect(machine.checkpointDueAt(4)).toBeUndefined();
   });
 
   it('consumes by paused step when pause() got no checkpointId', () => {
@@ -81,12 +85,22 @@ describe('checkpointDueAt', () => {
     expect(machine.checkpointDueAt(3)).toBeUndefined();
   });
 
+  it('pendingCheckpointCovering finds the boundary an action leads into', () => {
+    const { machine } = makeMachine([makeCheckpoint('acp_1', 3)]);
+    // Actions at steps 1..3 lead into the login boundary; step 4 is past it.
+    expect(machine.pendingCheckpointCovering(1)?.id).toBe('acp_1');
+    expect(machine.pendingCheckpointCovering(3)?.id).toBe('acp_1');
+    expect(machine.pendingCheckpointCovering(4)).toBeUndefined();
+    machine.consumeCheckpoint('acp_1');
+    expect(machine.pendingCheckpointCovering(1)).toBeUndefined();
+  });
+
   it('leaves other checkpoints at the same afterStep due after one is consumed', () => {
     const { machine } = makeMachine([makeCheckpoint('acp_1', 3), makeCheckpoint('acp_2', 3)]);
-    machine.pause({ ...PAUSE_INPUT, reason: 'recorded-checkpoint', pausedAtStep: 3, checkpointId: 'acp_1' });
+    machine.pause({ ...PAUSE_INPUT, reason: 'recorded-checkpoint', pausedAtStep: 4, checkpointId: 'acp_1' });
     machine.beginValidation();
     machine.validationSucceeded();
-    expect(machine.checkpointDueAt(3)?.id).toBe('acp_2');
+    expect(machine.checkpointDueAt(4)?.id).toBe('acp_2');
   });
 });
 
@@ -344,7 +358,7 @@ describe('terminal states reject all mutators', () => {
     const { machine } = makeMachine([makeCheckpoint('acp_1', 3)]);
     machine.pause(PAUSE_INPUT);
     machine.cancel();
-    expect(machine.checkpointDueAt(3)?.id).toBe('acp_1');
+    expect(machine.checkpointDueAt(4)?.id).toBe('acp_1');
     expect(machine.state).toBe('cancelled');
     expect(machine.pausedAtStep).toBe(4); // context kept for post-mortem reporting
   });
