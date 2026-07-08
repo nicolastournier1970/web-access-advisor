@@ -47,6 +47,15 @@ export class SessionsPage implements OnInit {
     return session.hasStorageState || session.authCheckpointCount > 0;
   }
 
+  /** Recorded (or previously failed/interrupted) sessions can be (re-)analyzed. */
+  protected canAnalyze(session: SessionSummary): boolean {
+    return (
+      session.status === 'recorded' ||
+      session.status === 'failed' ||
+      session.status === 'interrupted'
+    );
+  }
+
   /** Query params prefill the setup page ("record again"). */
   protected recordAgainParams(session: SessionSummary): Record<string, string> {
     const params: Record<string, string> = { url: session.url };

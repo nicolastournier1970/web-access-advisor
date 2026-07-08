@@ -16,6 +16,9 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import { z } from 'zod';
 import {
+  analysisResultSchema,
+  cancelReplayAuthResponseSchema,
+  continueReplayAuthResponseSchema,
   deleteSessionResponseSchema,
   endAuthSegmentResponseSchema,
   errorResponseSchema,
@@ -25,11 +28,17 @@ import {
   profileProbeRequestSchema,
   profileProbeResponseSchema,
   sessionSummarySchema,
+  startAnalysisRequestSchema,
+  startAnalysisResponseSchema,
   startAuthSegmentRequestSchema,
   startAuthSegmentResponseSchema,
   startRecordingRequestSchema,
   startRecordingResponseSchema,
   stopRecordingResponseSchema,
+  storageStateStatusResponseSchema,
+  type AnalysisResult,
+  type CancelReplayAuthResponse,
+  type ContinueReplayAuthResponse,
   type DeleteSessionResponse,
   type EndAuthSegmentResponse,
   type ErrorResponse,
@@ -38,15 +47,18 @@ import {
   type ListSessionsResponse,
   type ProfileProbeResponse,
   type SessionSummary,
+  type StartAnalysisResponse,
   type StartAuthSegmentResponse,
   type StartRecordingResponse,
   type StopRecordingResponse,
+  type StorageStateStatusResponse,
 } from '@waa/shared';
 
 /** Request payloads are typed as schema INPUT (defaults applied server-side). */
 export type StartRecordingRequestInput = z.input<typeof startRecordingRequestSchema>;
 export type StartAuthSegmentRequestInput = z.input<typeof startAuthSegmentRequestSchema>;
 export type ProfileProbeRequestInput = z.input<typeof profileProbeRequestSchema>;
+export type StartAnalysisRequestInput = z.input<typeof startAnalysisRequestSchema>;
 
 /** Injectable fetch so unit tests can provide a fake. */
 export const FETCH = new InjectionToken<typeof fetch>('FETCH', {
@@ -138,6 +150,39 @@ export class ApiClient {
     );
   }
 
+  // ---- Analysis (POST is 202; progress streams over SSE) ----
+
+  startAnalysis(id: string, body: StartAnalysisRequestInput = {}): Promise<StartAnalysisResponse> {
+    return this.request(
+      startAnalysisResponseSchema,
+      'POST',
+      `/sessions/${encodeURIComponent(id)}/analysis`,
+      body,
+    );
+  }
+
+  getAnalysis(id: string): Promise<AnalysisResult> {
+    return this.request(analysisResultSchema, 'GET', `/sessions/${encodeURIComponent(id)}/analysis`);
+  }
+
+  // ---- Replay pause-for-login (acts on the replay embedded in the analysis) ----
+
+  continueReplayAuth(id: string): Promise<ContinueReplayAuthResponse> {
+    return this.request(
+      continueReplayAuthResponseSchema,
+      'POST',
+      `/sessions/${encodeURIComponent(id)}/replay/auth/continue`,
+    );
+  }
+
+  cancelReplayAuth(id: string): Promise<CancelReplayAuthResponse> {
+    return this.request(
+      cancelReplayAuthResponseSchema,
+      'POST',
+      `/sessions/${encodeURIComponent(id)}/replay/auth/cancel`,
+    );
+  }
+
   // ---- Browsers ----
 
   listBrowsers(): Promise<ListBrowsersResponse> {
@@ -149,6 +194,14 @@ export class ApiClient {
   }
 
   // ---- Storage state (saved logins) ----
+
+  getStorageStateStatus(id: string): Promise<StorageStateStatusResponse> {
+    return this.request(
+      storageStateStatusResponseSchema,
+      'GET',
+      `/sessions/${encodeURIComponent(id)}/storage-state/status`,
+    );
+  }
 
   findStorageState(url: string): Promise<FindStorageStateResponse> {
     return this.request(

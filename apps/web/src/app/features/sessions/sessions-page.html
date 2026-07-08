@@ -76,12 +76,22 @@
                   >
                     Record again
                   </a>
-                  <a
-                    [routerLink]="['/sessions', session.sessionId, 'results']"
-                    class="font-medium text-blueberry-600 hover:underline"
-                  >
-                    Results
-                  </a>
+                  @if (canAnalyze(session)) {
+                    <a
+                      [routerLink]="['/sessions', session.sessionId, 'analyze']"
+                      class="font-medium text-blueberry-600 hover:underline"
+                    >
+                      Analyze
+                    </a>
+                  }
+                  @if (session.hasAnalysis) {
+                    <a
+                      [routerLink]="['/sessions', session.sessionId, 'results']"
+                      class="font-medium text-blueberry-600 hover:underline"
+                    >
+                      Results
+                    </a>
+                  }
                 }
                 <button
                   type="button"

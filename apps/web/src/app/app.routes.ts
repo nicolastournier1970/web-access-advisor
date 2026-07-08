@@ -1,9 +1,6 @@
 import { Routes } from '@angular/router';
 
-/**
- * Routes per docs/rewrite-plan.md §4. Phase 4 ships setup/record/sessions;
- * analyze + results are Phase 5 placeholders.
- */
+/** Routes per docs/rewrite-plan.md §4. */
 export const routes: Routes = [
   {
     path: '',
@@ -23,14 +20,12 @@ export const routes: Routes = [
   },
   {
     path: 'sessions/:id/analyze',
-    loadComponent: () =>
-      import('./features/analyze/analyze-placeholder').then((m) => m.AnalyzePlaceholder),
+    loadComponent: () => import('./features/analyze/analyze-page').then((m) => m.AnalyzePage),
     title: 'Web Access Advisor — Analysis',
   },
   {
     path: 'sessions/:id/results',
-    loadComponent: () =>
-      import('./features/results/results-placeholder').then((m) => m.ResultsPlaceholder),
+    loadComponent: () => import('./features/results/results-page').then((m) => m.ResultsPage),
     title: 'Web Access Advisor — Results',
   },
   { path: '**', redirectTo: '' },

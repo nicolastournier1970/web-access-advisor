@@ -202,12 +202,19 @@
                 >
                   Open recording
                 </a>
-              } @else {
+              } @else if (session.hasAnalysis) {
                 <a
                   [routerLink]="['/sessions', session.sessionId, 'results']"
                   class="text-sm font-medium text-blueberry-600 hover:underline"
                 >
                   Results
+                </a>
+              } @else {
+                <a
+                  [routerLink]="['/sessions', session.sessionId, 'analyze']"
+                  class="text-sm font-medium text-blueberry-600 hover:underline"
+                >
+                  Analyze
                 </a>
               }
             </div>

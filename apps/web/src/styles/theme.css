@@ -144,3 +144,32 @@
     outline-color: var(--color-warning-accent);
   }
 }
+
+/* Print / Save-as-PDF export of the results page (rewrite-plan §4). */
+@media print {
+  header,
+  .skip-link,
+  .print-hidden {
+    display: none !important;
+  }
+
+  main {
+    max-width: none;
+    padding: 0;
+  }
+
+  article {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: visible !important;
+  }
+
+  img {
+    break-inside: avoid;
+  }
+}

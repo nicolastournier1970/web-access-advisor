@@ -1,4 +1,7 @@
-/* Global styles: Tailwind v4 + CDK overlay structural styles + Blueberry theme. */
+/* Global styles: Tailwind v4 + CDK structural styles + Blueberry theme.
+   a11y-prebuilt provides .cdk-visually-hidden, used by the CDK LiveAnnouncer —
+   without it announcements render as visible text at the end of <body>. */
 @import 'tailwindcss';
 @import '@angular/cdk/overlay-prebuilt.css';
+@import '@angular/cdk/a11y-prebuilt.css';
 @import './styles/theme.css';
