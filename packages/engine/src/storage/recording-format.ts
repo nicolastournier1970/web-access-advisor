@@ -8,14 +8,19 @@
  *    string is meaningless) — upgraded in memory, never rewritten on disk.
  *
  * Upgrade rules (v1 → v2): each action's crude CSS `selector` becomes a
- * single `css` target candidate, `redacted` is false (v1 recorded values in
- * plaintext), `authCheckpoints` is empty (v1 had no login segments).
+ * single `css` target candidate, `authCheckpoints` is empty (v1 had no login
+ * segments), and fills whose selector/metadata look credential-like are
+ * RETROACTIVELY REDACTED: the v1 recorder captured every input value in
+ * plaintext (passwords included), and the replayer only refuses to re-type
+ * values marked `redacted` — without this heuristic, replaying a v1 session
+ * would re-enter recorded credentials.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import {
   browserTypeSchema,
   recordingV1Schema,
   recordingV2Schema,
+  REDACTED_VALUE,
   type ActionV2,
   type RecordingV1,
   type RecordingV2,
@@ -39,23 +44,37 @@ function sessionLabel(raw: unknown): string {
   return '';
 }
 
+/** Selector/metadata patterns that mark a v1 fill as credential-like. */
+const SENSITIVE_V1_PATTERN = /passw|pwd|otp|one[-_]?time|secret|token|cvv|cvc|\bpin\b/i;
+
+/** True when a plaintext v1 fill value must not survive the upgrade. */
+function isSensitiveV1Fill(action: RecordingV1['actions'][number]): boolean {
+  if (action.type !== 'fill' || action.value === undefined) return false;
+  if (action.selector !== undefined && SENSITIVE_V1_PATTERN.test(action.selector)) return true;
+  const inputType = action.metadata?.['inputType'];
+  return typeof inputType === 'string' && inputType.toLowerCase() === 'password';
+}
+
 /** Upgrade a schema-valid v1 recording to v2 in memory (no disk rewrite). */
 function upgradeV1(v1: RecordingV1): RecordingV2 {
-  const actions: ActionV2[] = v1.actions.map((action) => ({
-    type: action.type,
-    step: action.step,
-    timestamp: action.timestamp,
-    ...(action.url !== undefined ? { url: action.url } : {}),
-    ...(action.selector !== undefined
-      ? {
-          selector: action.selector,
-          target: { candidates: [{ strategy: 'css' as const, value: action.selector }] },
-        }
-      : {}),
-    ...(action.value !== undefined ? { value: action.value } : {}),
-    redacted: false,
-    ...(action.metadata !== undefined ? { metadata: action.metadata } : {}),
-  }));
+  const actions: ActionV2[] = v1.actions.map((action) => {
+    const sensitive = isSensitiveV1Fill(action);
+    return {
+      type: action.type,
+      step: action.step,
+      timestamp: action.timestamp,
+      ...(action.url !== undefined ? { url: action.url } : {}),
+      ...(action.selector !== undefined
+        ? {
+            selector: action.selector,
+            target: { candidates: [{ strategy: 'css' as const, value: action.selector }] },
+          }
+        : {}),
+      ...(action.value !== undefined ? { value: sensitive ? REDACTED_VALUE : action.value } : {}),
+      redacted: sensitive,
+      ...(action.metadata !== undefined ? { metadata: action.metadata } : {}),
+    };
+  });
 
   // v1 stored browserType as a free string; only carry it when it is a valid
   // Playwright browser type, otherwise drop it.

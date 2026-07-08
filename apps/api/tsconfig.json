@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"],
+    // Deliberately clear the source path aliases inherited from
+    // tsconfig.base.json: @waa/shared must resolve through the workspace
+    // symlink to its BUILT dist (packages/shared/dist), never its sources.
+    // If it looks stale: npm run build -w packages/shared
+    "paths": {}
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -56,3 +56,4 @@ ehthumbs.db
 
 # Snapshots (contains recordings, DOM snapshots, axe analysis, etc.)
 /snapshots/*
+*.tsbuildinfo

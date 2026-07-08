@@ -146,6 +146,61 @@ describe('saveRecording / loadRecordingFile roundtrip (v2)', () => {
   });
 });
 
+describe('loadRecording — v1 credential redaction (security regression)', () => {
+  const v1Base = {
+    sessionId: 's_v1_creds',
+    url: 'https://app.example.test/',
+    startTime: '2025-08-20T02:20:41.024Z',
+    actions: [] as Array<Record<string, unknown>>,
+  };
+  const fill = (selector: string, value: string, metadata?: Record<string, unknown>) => ({
+    type: 'fill',
+    step: 1,
+    timestamp: '2025-08-20T02:20:42.000Z',
+    selector,
+    value,
+    ...(metadata ? { metadata } : {}),
+  });
+
+  it('redacts fills whose selector looks credential-like', () => {
+    for (const selector of ['#password', 'input[name=pwd]', '.otp-code', '#session-token']) {
+      const upgraded = loadRecording({ ...v1Base, actions: [fill(selector, 'hunter2')] });
+      expect(upgraded.actions[0].value, selector).toBe('[REDACTED]');
+      expect(upgraded.actions[0].redacted, selector).toBe(true);
+    }
+  });
+
+  it('redacts fills whose metadata marks a password input', () => {
+    const upgraded = loadRecording({
+      ...v1Base,
+      actions: [fill('.field-3', 'hunter2', { inputType: 'password' })],
+    });
+    expect(upgraded.actions[0].value).toBe('[REDACTED]');
+    expect(upgraded.actions[0].redacted).toBe(true);
+  });
+
+  it('leaves ordinary fills and non-fill values untouched', () => {
+    const upgraded = loadRecording({
+      ...v1Base,
+      actions: [
+        fill('#name', 'Alice'),
+        {
+          type: 'click',
+          step: 2,
+          timestamp: '2025-08-20T02:20:43.000Z',
+          selector: '#pin-board',
+          value: 'Pin board',
+        },
+      ],
+    });
+    expect(upgraded.actions[0].value).toBe('Alice');
+    expect(upgraded.actions[0].redacted).toBe(false);
+    // clicks capture element text, not user input — never redacted
+    expect(upgraded.actions[1].value).toBe('Pin board');
+    expect(upgraded.actions[1].redacted).toBe(false);
+  });
+});
+
 describe('loadRecording — rejection paths', () => {
   it('rejects garbage input with a descriptive error', () => {
     expect(() => loadRecording('garbage')).toThrow(/Invalid v1 recording/);
