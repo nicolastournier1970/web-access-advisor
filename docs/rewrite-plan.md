@@ -205,6 +205,11 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 - [ ] Phase 7 — Cutover (tag `v1-legacy`, then delete legacy on this branch; `main` unaffected)
 - [ ] Phase 8 — Docs, CLI, CI
 
+### Open items carried forward
+- **Phase 6 decision**: mapping `recording.auth_suspected.suspectedAtStep` → `fromStep` when the user confirms a retroactive segment: for `auth-domain-navigation` the trigger IS a recorded step (use `suspectedAtStep − 1`); for `password-field` the trigger is a focus that was never recorded (use `suspectedAtStep`). Decide + test in Phase 6.
+- **Phase 8 docs reconciliation**: `docs/sse-events.md` says fresh SSE connections are live-only, but the implemented events module replays the buffer to fresh connections too (per its tests). Pick one (probably implementation) and align doc + tests.
+- SSE controller streams for unknown session ids — add a session-store existence guard when the sessions module lands (Phase 3 rest).
+
 ### Notes / deviations
 - Branch is `refactor` (created in VS Code) rather than the originally planned `rewrite/angular-nest`.
 - Zod v4 gotcha found by tests: `.refine()` can't see unknown keys (stripped first) and `z.undefined()` makes a key required — the v1 "no formatVersion" rule uses `z.never().optional()`.
