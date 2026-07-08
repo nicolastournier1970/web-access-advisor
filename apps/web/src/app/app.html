@@ -1,0 +1,46 @@
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<header class="border-b border-line bg-white shadow-card">
+  <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+    <a
+      routerLink="/"
+      class="flex items-center gap-2 text-lg font-semibold text-blueberry-700 no-underline"
+    >
+      <svg class="size-7 text-blueberry-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path
+          d="M12 2a4 4 0 0 1 4 4 4 4 0 0 1-8 0 4 4 0 0 1 4-4Zm-8 7h16a1 1 0 0 1 0 2h-5.2l1.9 8.3a1 1 0 0 1-1.95.44L13.2 14h-2.4l-1.55 5.74a1 1 0 0 1-1.95-.44L9.2 11H4a1 1 0 0 1 0-2Z"
+        />
+      </svg>
+      Web Access Advisor
+    </a>
+    <nav aria-label="Primary">
+      <ul class="flex items-center gap-1">
+        <li>
+          <a
+            routerLink="/"
+            routerLinkActive="bg-blueberry-100 text-blueberry-700"
+            [routerLinkActiveOptions]="{ exact: true }"
+            ariaCurrentWhenActive="page"
+            class="rounded-md px-3 py-2 text-sm font-medium text-muted hover:text-blueberry-700"
+          >
+            New recording
+          </a>
+        </li>
+        <li>
+          <a
+            routerLink="/sessions"
+            routerLinkActive="bg-blueberry-100 text-blueberry-700"
+            ariaCurrentWhenActive="page"
+            class="rounded-md px-3 py-2 text-sm font-medium text-muted hover:text-blueberry-700"
+          >
+            Sessions
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main-content" tabindex="-1" class="mx-auto max-w-6xl px-4 py-8 focus:outline-none">
+  <router-outlet />
+</main>

@@ -1,0 +1,88 @@
+<h1 class="text-2xl font-semibold text-blueberry-700">Recording session</h1>
+
+<!-- Status bar -->
+<waa-card class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 !py-3">
+  <span class="flex items-center gap-2 text-sm font-medium text-ink">
+    @if (store.phase() === 'recording') {
+      <span class="relative flex size-3" aria-hidden="true">
+        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger opacity-60"></span>
+        <span class="relative inline-flex size-3 rounded-full bg-danger"></span>
+      </span>
+      Recording
+    } @else if (store.phase() === 'stopping') {
+      <waa-spinner size="sm" />
+      Stopping…
+    } @else {
+      <span class="size-3 rounded-full bg-silver" aria-hidden="true"></span>
+      Not recording
+    }
+  </span>
+
+  <span class="max-w-full truncate text-sm text-muted" [title]="store.url() ?? ''">
+    {{ store.url() ?? '—' }}
+  </span>
+
+  <span class="text-xs text-muted">Session {{ id() }}</span>
+
+  <span class="ml-auto flex items-center gap-1.5 text-xs font-medium" data-testid="connection-state">
+    <span
+      class="size-2 rounded-full"
+      [class.bg-success-accent]="store.connectionState() === 'open'"
+      [class.bg-warning-accent]="store.connectionState() === 'reconnecting' || store.connectionState() === 'connecting'"
+      [class.bg-silver]="store.connectionState() === 'closed'"
+      aria-hidden="true"
+    ></span>
+    {{ connectionLabel() }}
+  </span>
+</waa-card>
+
+<!-- Login segment banner -->
+<div class="mt-4">
+  <waa-auth-banner [active]="store.authSegmentActive()" />
+</div>
+
+<!-- Action feed -->
+<section class="mt-4" aria-labelledby="feed-heading">
+  <div class="flex items-center justify-between">
+    <h2 id="feed-heading" class="text-sm font-semibold text-ink">
+      Actions <span class="font-normal text-muted">({{ store.actions().length }})</span>
+    </h2>
+  </div>
+  <div class="mt-2">
+    <waa-action-feed [actions]="store.actions()" />
+  </div>
+</section>
+
+<!-- Controls -->
+<div class="mt-6 flex flex-wrap items-center gap-3">
+  <button
+    type="button"
+    waaButton="secondary"
+    [attr.aria-pressed]="store.authSegmentActive()"
+    [disabled]="authBusy() || store.phase() !== 'recording'"
+    (click)="toggleLoginSegment()"
+  >
+    <svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path
+        d="M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v3h6V7a3 3 0 0 0-3-3Z"
+      />
+    </svg>
+    {{ store.authSegmentActive() ? "I'm done logging in" : "I'm logging in" }}
+  </button>
+
+  <button
+    type="button"
+    waaButton="danger"
+    [disabled]="store.phase() !== 'recording'"
+    (click)="stop()"
+  >
+    <svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+    </svg>
+    Stop recording
+  </button>
+
+  <p class="text-sm text-muted">
+    Interact with the opened browser window; every action shows up here live.
+  </p>
+</div>

@@ -1,0 +1,219 @@
+<h1 class="text-2xl font-semibold text-blueberry-700">Start an accessibility recording</h1>
+<p class="mt-1 text-sm text-muted">
+  Record a browsing session in a real browser, then replay it with snapshot capture and
+  AI-assisted accessibility analysis.
+</p>
+
+<form class="mt-6 space-y-6" (ngSubmit)="start()">
+  <!-- URL -->
+  <waa-card>
+    <div class="space-y-4">
+      <div>
+        <label for="setup-url" class="block text-sm font-medium text-ink">Website start URL</label>
+        <input
+          id="setup-url"
+          type="text"
+          [formControl]="urlControl"
+          placeholder="example.com or https://example.com"
+          autocomplete="url"
+          spellcheck="false"
+          [attr.aria-invalid]="urlControl.touched && urlControl.invalid"
+          [attr.aria-describedby]="urlControl.touched && urlControl.invalid ? 'setup-url-error' : null"
+          class="mt-1 w-full rounded-md border border-line bg-white px-4 py-2.5 text-ink placeholder:text-muted focus:border-blueberry-600 focus:shadow-[0_0_0_3px_var(--color-blueberry-100)] focus:outline-none"
+        />
+        @if (urlControl.touched && urlControl.invalid) {
+          <p id="setup-url-error" class="mt-1 text-sm text-danger">
+            @if (urlControl.hasError('required')) {
+              Enter the URL of the site to record.
+            } @else {
+              Enter a valid http(s) website address, e.g. https://example.com.
+            }
+          </p>
+        }
+      </div>
+
+      <div>
+        <label for="setup-name" class="block text-sm font-medium text-ink">
+          Session name <span class="font-normal text-muted">(optional)</span>
+        </label>
+        <input
+          id="setup-name"
+          type="text"
+          [formControl]="nameControl"
+          maxlength="200"
+          class="mt-1 w-full rounded-md border border-line bg-white px-4 py-2.5 text-ink focus:border-blueberry-600 focus:shadow-[0_0_0_3px_var(--color-blueberry-100)] focus:outline-none"
+        />
+      </div>
+
+      @if (storageMatches().length > 0) {
+        <div class="rounded-md border status-completed px-4 py-3">
+          <label class="flex items-start gap-3">
+            <input
+              type="checkbox"
+              class="mt-0.5 size-4 accent-blueberry-600"
+              [checked]="reuseSavedLogin()"
+              (change)="reuseSavedLogin.set($any($event.target).checked)"
+            />
+            <span class="text-sm">
+              Reuse saved login from
+              <strong>{{ storageMatches()[0].savedAt | date: 'medium' }}</strong>
+              <span class="block text-xs opacity-80">
+                A previous session on this site saved a login. It will be validated before use.
+              </span>
+            </span>
+          </label>
+        </div>
+      }
+    </div>
+  </waa-card>
+
+  <!-- Browser picker -->
+  <waa-card>
+    <fieldset>
+      <legend class="text-sm font-medium text-ink">Browser</legend>
+      @if (browsersError(); as error) {
+        <p class="mt-2 rounded-md border status-error px-4 py-3 text-sm">{{ error }}</p>
+      } @else if (browsers() === null) {
+        <p class="mt-2 flex items-center gap-2 text-sm text-muted">
+          <waa-spinner size="sm" />
+          Detecting installed browsers…
+        </p>
+      } @else {
+        <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          @for (browser of browsers(); track browser.name) {
+            <label
+              class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors"
+              [class.border-blueberry-600]="selectedBrowserName() === browser.name"
+              [class.bg-blueberry-100]="selectedBrowserName() === browser.name"
+              [class.border-line]="selectedBrowserName() !== browser.name"
+              [class.opacity-50]="!browser.available"
+              [class.cursor-not-allowed]="!browser.available"
+            >
+              <input
+                type="radio"
+                name="browser"
+                class="mt-1 size-4 accent-blueberry-600"
+                [value]="browser.name"
+                [checked]="selectedBrowserName() === browser.name"
+                [disabled]="!browser.available"
+                (change)="selectBrowser(browser)"
+              />
+              <span>
+                <span class="block text-sm font-medium text-ink">{{ browser.name }}</span>
+                <span class="block text-xs text-muted">
+                  {{ browser.available ? profileHelpText(browser) : 'Not installed' }}
+                </span>
+              </span>
+            </label>
+          }
+        </div>
+
+        @if (selectedBrowser(); as selected) {
+          <div class="mt-4 border-t border-line pt-4">
+            <label
+              class="flex items-start gap-3"
+              [class.opacity-50]="!selected.profilePath"
+            >
+              <input
+                type="checkbox"
+                class="mt-0.5 size-4 accent-blueberry-600"
+                [checked]="useProfile()"
+                [disabled]="!selected.profilePath"
+                (change)="toggleProfile($any($event.target).checked)"
+              />
+              <span class="text-sm text-ink">
+                Use my {{ selected.name }} profile (saved logins)
+                @if (!selected.profilePath) {
+                  <span class="block text-xs text-muted">No profile detected for this browser.</span>
+                }
+              </span>
+            </label>
+
+            @if (probing()) {
+              <p class="mt-2 flex items-center gap-2 text-sm text-muted">
+                <waa-spinner size="sm" />
+                Checking whether the profile can be used…
+              </p>
+            } @else if (useProfile() && probeResult(); as probe) {
+              <p class="mt-2 rounded-md border px-4 py-2.5 text-sm" [class]="probeClass(probe.status)" role="status">
+                @if (probe.status === 'locked') {
+                  {{ probe.message }} Close all {{ selected.name }} windows and try again, or
+                  continue with a fresh session.
+                } @else {
+                  {{ probe.message }}
+                }
+              </p>
+            }
+          </div>
+        }
+      }
+    </fieldset>
+  </waa-card>
+
+  @if (startError(); as error) {
+    <p class="rounded-md border status-error px-4 py-3 text-sm" role="alert">{{ error }}</p>
+  }
+
+  <div class="flex items-center gap-3">
+    <button type="submit" waaButton [disabled]="starting()">
+      @if (starting()) {
+        <waa-spinner size="sm" class="text-white" />
+        Starting…
+      } @else {
+        Start recording
+      }
+    </button>
+    <span class="text-sm text-muted">A browser window will open on your machine.</span>
+  </div>
+</form>
+
+<!-- Recent sessions -->
+<section class="mt-10" aria-labelledby="recent-heading">
+  <div class="flex items-baseline justify-between">
+    <h2 id="recent-heading" class="text-lg font-semibold text-blueberry-700">Recent sessions</h2>
+    <a routerLink="/sessions" class="text-sm font-medium text-blueberry-600 hover:underline">
+      View all sessions
+    </a>
+  </div>
+  @if (sessionsStore.recent().length === 0) {
+    <p class="mt-3 text-sm text-muted">
+      No sessions yet — your recordings will appear here.
+    </p>
+  } @else {
+    <ul class="mt-3 space-y-2">
+      @for (session of sessionsStore.recent(); track session.sessionId) {
+        <li>
+          <waa-card class="flex flex-wrap items-center justify-between gap-3 !py-3">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-ink">
+                {{ session.name || session.sessionId }}
+              </p>
+              <p class="truncate text-xs text-muted">{{ session.url }}</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <waa-badge [kind]="session.status === 'failed' || session.status === 'interrupted' ? 'danger' : session.status === 'recording' ? 'brand' : 'neutral'">
+                {{ session.status }}
+              </waa-badge>
+              <span class="text-xs text-muted">{{ session.startTime | date: 'mediumDate' }}</span>
+              @if (session.status === 'recording') {
+                <a
+                  [routerLink]="['/sessions', session.sessionId, 'record']"
+                  class="text-sm font-medium text-blueberry-600 hover:underline"
+                >
+                  Open recording
+                </a>
+              } @else {
+                <a
+                  [routerLink]="['/sessions', session.sessionId, 'results']"
+                  class="text-sm font-medium text-blueberry-600 hover:underline"
+                >
+                  Results
+                </a>
+              }
+            </div>
+          </waa-card>
+        </li>
+      }
+    </ul>
+  }
+</section>

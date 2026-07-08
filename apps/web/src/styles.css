@@ -1,0 +1,4 @@
+/* Global styles: Tailwind v4 + CDK overlay structural styles + Blueberry theme. */
+@import 'tailwindcss';
+@import '@angular/cdk/overlay-prebuilt.css';
+@import './styles/theme.css';

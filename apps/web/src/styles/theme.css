@@ -1,0 +1,146 @@
+/**
+ * "Blueberry" design tokens ported from the v1 design system
+ * (src/styles/design-system.css) into the Tailwind v4 theme.
+ *
+ * Palette mapping (v1 token -> Tailwind scale step):
+ *   blueberry-10  #edecf2 -> blueberry-100
+ *   blueberry-30  #c9c6d8 -> blueberry-200
+ *   blueberry-50  #a39fbd -> blueberry-300
+ *   blueberry-70  #807aa4 -> blueberry-400
+ *   blueberry-80  #6d6796 -> blueberry-500
+ *   blueberry     #49417C -> blueberry-600
+ *   blueberry-dark#3A3463 -> blueberry-700
+ *   (blueberry-50/800/900 are derived shades for hover/pressed states)
+ *
+ * WCAG AA contrast adjustments made while porting (checked against the
+ * backgrounds they are used on; original values noted):
+ *   - status-completed text: #046A52 (v1 --dark-green #037E62 was 4.35:1 on
+ *     #DCF3EE — marginally below AA 4.5:1)
+ *   - status-warning + text-warning: #8A4600 (v1 --dark-yellow #C16101 was
+ *     3.83:1 on #FFF2E4; v1 --mid-yellow #D87513 was 3.24:1 on white)
+ *   - text-success: #037E62 on white (v1 used --bright-green #00C698, 2.2:1)
+ *   - primary buttons: blueberry-600 + white (v1 used green #16a34a + white,
+ *     3.3:1); #00C698/#EA9C50 are kept as non-text accent colors only.
+ */
+
+@theme {
+  /* Blueberry brand scale */
+  --color-blueberry-50: #f6f6f9;
+  --color-blueberry-100: #edecf2;
+  --color-blueberry-200: #c9c6d8;
+  --color-blueberry-300: #a39fbd;
+  --color-blueberry-400: #807aa4;
+  --color-blueberry-500: #6d6796;
+  --color-blueberry-600: #49417c;
+  --color-blueberry-700: #3a3463;
+  --color-blueberry-800: #2d2850;
+  --color-blueberry-900: #221e3d;
+
+  /* Neutrals (v1 names in comments) */
+  --color-ink: #313131; /* neutral-black */
+  --color-muted: #68717a; /* slate */
+  --color-silver: #a2aaad;
+  --color-line: #d6d6d6; /* mid-grey */
+  --color-surface-3: #ededed; /* light-grey */
+  --color-surface-2: #f5f5f5; /* x-light-grey */
+  --color-surface-1: #f9f9f9; /* xx-light-grey */
+
+  /* Semantic colors */
+  --color-success: #037e62; /* dark-green */
+  --color-success-strong: #046a52; /* AA text on success-bg */
+  --color-success-accent: #00c698; /* bright-green — non-text accents only */
+  --color-success-bg: #dcf3ee; /* light-green */
+  --color-danger: #d60000; /* bright-red */
+  --color-danger-strong: #830000; /* dark-red */
+  --color-danger-bg: #f4e6e6; /* light-red */
+  --color-warning: #8a4600; /* darkened from dark-yellow #C16101 for AA */
+  --color-warning-accent: #ea9c50; /* yellow — non-text accents only */
+  --color-warning-bg: #fff2e4; /* x-light-yellow */
+  --color-info: #006bb3; /* matte-blue */
+
+  /* Typography */
+  --font-sans: 'Open Sans', 'Segoe UI', Tahoma, sans-serif;
+
+  /* Shadows */
+  --shadow-card: 0px 1px 6px 0px rgba(0, 0, 0, 0.1);
+  --shadow-dropdown: 0px 1px 6px 0px rgba(8, 45, 70, 0.15);
+}
+
+/* Legacy custom-property aliases, so ported markup/docs keep working. */
+:root {
+  --blueberry-dark: var(--color-blueberry-700);
+  --blueberry: var(--color-blueberry-600);
+  --blueberry-80: var(--color-blueberry-500);
+  --blueberry-70: var(--color-blueberry-400);
+  --blueberry-50: var(--color-blueberry-300);
+  --blueberry-30: var(--color-blueberry-200);
+  --blueberry-10: var(--color-blueberry-100);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background-color: var(--color-surface-1);
+  }
+
+  /* Visible focus ring on every interactive element (a11y bar, item 14). */
+  :focus-visible {
+    outline: 2px solid var(--color-blueberry-600);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* Progress status classes ported from v1 (contrast-adjusted, see header). */
+  .status-pending {
+    color: var(--color-muted);
+    background-color: var(--color-surface-2);
+    border-color: var(--color-line);
+  }
+
+  .status-active {
+    color: var(--color-blueberry-700);
+    background-color: var(--color-blueberry-100);
+    border-color: var(--color-blueberry-200);
+    box-shadow: var(--shadow-card);
+  }
+
+  .status-completed {
+    color: var(--color-success-strong);
+    background-color: var(--color-success-bg);
+    border-color: var(--color-success-accent);
+  }
+
+  .status-error {
+    color: var(--color-danger-strong);
+    background-color: var(--color-danger-bg);
+    border-color: var(--color-danger);
+  }
+
+  .status-warning {
+    color: var(--color-warning);
+    background-color: var(--color-warning-bg);
+    border-color: var(--color-warning-accent);
+  }
+
+  /* Skip link: visually hidden until focused (a11y bar, item 14). */
+  .skip-link {
+    position: absolute;
+    left: 0.5rem;
+    top: 0.5rem;
+    z-index: 100;
+    transform: translateY(-300%);
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    background: var(--color-blueberry-700);
+    color: white;
+    transition: transform 0.15s ease-in-out;
+  }
+
+  .skip-link:focus-visible {
+    transform: translateY(0);
+    outline-color: var(--color-warning-accent);
+  }
+}

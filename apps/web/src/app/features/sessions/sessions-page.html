@@ -1,0 +1,100 @@
+<div class="flex items-baseline justify-between">
+  <h1 class="text-2xl font-semibold text-blueberry-700">Sessions</h1>
+  <a routerLink="/" class="text-sm font-medium text-blueberry-600 hover:underline">
+    New recording
+  </a>
+</div>
+
+@if (store.loading() && store.sessions().length === 0) {
+  <p class="mt-6 flex items-center gap-2 text-sm text-muted">
+    <waa-spinner size="sm" />
+    Loading sessions…
+  </p>
+} @else if (store.error(); as error) {
+  <p class="mt-6 rounded-md border status-error px-4 py-3 text-sm" role="alert">{{ error }}</p>
+} @else if (store.sessions().length === 0) {
+  <p class="mt-6 text-sm text-muted">No sessions yet — start a recording to create one.</p>
+} @else {
+  <div class="mt-6 overflow-x-auto rounded-lg border border-line bg-white shadow-card">
+    <table class="w-full min-w-[44rem] border-collapse text-left text-sm">
+      <caption class="sr-only">
+        Recorded sessions with status, action count and available operations
+      </caption>
+      <thead>
+        <tr class="border-b border-line bg-surface-2 text-xs uppercase tracking-wide text-muted">
+          <th scope="col" class="px-4 py-3 font-semibold">Session</th>
+          <th scope="col" class="px-4 py-3 font-semibold">Status</th>
+          <th scope="col" class="px-4 py-3 font-semibold">Actions</th>
+          <th scope="col" class="px-4 py-3 font-semibold">Login</th>
+          <th scope="col" class="px-4 py-3 font-semibold">Started</th>
+          <th scope="col" class="px-4 py-3 font-semibold">
+            <span class="sr-only">Operations</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-line/60">
+        @for (session of store.sessions(); track session.sessionId) {
+          <tr>
+            <td class="max-w-64 px-4 py-3">
+              <span class="block truncate font-medium text-ink" [title]="session.name || session.sessionId">
+                {{ session.name || session.sessionId }}
+              </span>
+              <span class="block truncate text-xs text-muted" [title]="session.url">
+                {{ session.url }}
+              </span>
+            </td>
+            <td class="px-4 py-3">
+              <waa-badge [kind]="statusKind(session.status)">{{ session.status }}</waa-badge>
+            </td>
+            <td class="px-4 py-3 tabular-nums">{{ session.actionCount }}</td>
+            <td class="px-4 py-3">
+              @if (hasLogin(session)) {
+                <waa-badge kind="info">
+                  {{ session.hasStorageState ? 'Saved login' : 'Login marked' }}
+                </waa-badge>
+              } @else {
+                <span class="text-xs text-muted">—</span>
+              }
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-muted">
+              {{ session.startTime | date: 'medium' }}
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-end gap-3 whitespace-nowrap">
+                @if (session.status === 'recording') {
+                  <a
+                    [routerLink]="['/sessions', session.sessionId, 'record']"
+                    class="font-medium text-blueberry-600 hover:underline"
+                  >
+                    Open recording
+                  </a>
+                } @else {
+                  <a
+                    routerLink="/"
+                    [queryParams]="recordAgainParams(session)"
+                    class="font-medium text-blueberry-600 hover:underline"
+                  >
+                    Record again
+                  </a>
+                  <a
+                    [routerLink]="['/sessions', session.sessionId, 'results']"
+                    class="font-medium text-blueberry-600 hover:underline"
+                  >
+                    Results
+                  </a>
+                }
+                <button
+                  type="button"
+                  (click)="remove(session)"
+                  class="font-medium text-danger hover:underline"
+                >
+                  Delete<span class="sr-only"> session {{ session.name || session.sessionId }}</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
