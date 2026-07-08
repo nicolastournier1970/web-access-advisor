@@ -11,7 +11,7 @@
 export * from './engine-types.js';
 
 // storage
-export { loadRecording, saveRecording } from './storage/recording-format.js';
+export { loadRecording, loadRecordingFile, saveRecording } from './storage/recording-format.js';
 export { sessionPaths, type SessionPaths } from './storage/session-files.js';
 export {
   getStorageStateStatus,

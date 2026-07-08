@@ -2,6 +2,9 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { sseEventSchema } from '@waa/shared';
 import type { SseEvent } from '@waa/shared';
 import { createApp } from '../dist/app.factory.js';
@@ -20,6 +23,15 @@ describe('GET /api/sessions/:id/events (SSE)', () => {
   ];
 
   beforeAll(async () => {
+    // The SSE endpoint 404s unknown sessions; register the test session ids
+    // on disk (existence = session.json or recording.json in SNAPSHOTS_DIR).
+    const snapshotsDir = await mkdtemp(path.join(os.tmpdir(), 'waa-sse-test-'));
+    process.env.SNAPSHOTS_DIR = snapshotsDir; // read once by getEnv() at createApp
+    for (const id of ['sess-replay', 'sess-live', 'sess-ring', 'sess-drop']) {
+      await mkdir(path.join(snapshotsDir, id), { recursive: true });
+      await writeFile(path.join(snapshotsDir, id, 'recording.json'), '{}');
+    }
+
     app = await createApp({ logger: false });
     await app.listen(0, '127.0.0.1');
     port = (app.getHttpServer().address() as AddressInfo).port;

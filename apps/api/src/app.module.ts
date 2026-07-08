@@ -1,16 +1,25 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from './config/env.js';
+import { EngineModule } from './engine/engine.module.js';
 import { EventsModule } from './events/events.module.js';
 import { HealthController } from './health/health.controller.js';
+import { SessionsModule } from './sessions/sessions.module.js';
+import { RecordingModule } from './recording/recording.module.js';
+import { AnalysisModule } from './analysis/analysis.module.js';
+import { BrowsersModule } from './browsers/browsers.module.js';
+import { StorageStateModule } from './storage-state/storage-state.module.js';
 
-/**
- * Skeleton root module (rewrite Phase 3). Engine-dependent modules
- * (sessions, recording, replay, analysis, browsers, storage-state, llm)
- * are added once @waa/core lands; they import EventsModule's
- * SessionEventsService to publish and inject ENV for configuration.
- */
 @Module({
-  imports: [EnvModule, EventsModule],
+  imports: [
+    EnvModule,
+    EngineModule,
+    EventsModule,
+    SessionsModule,
+    RecordingModule,
+    AnalysisModule,
+    BrowsersModule,
+    StorageStateModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule {}

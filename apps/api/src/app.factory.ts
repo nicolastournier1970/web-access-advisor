@@ -16,11 +16,12 @@ export interface CreateAppOptions {
   logger?: LogLevel[] | false;
 }
 
-export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule, {
-    logger: options.logger ?? ['error', 'warn', 'log'],
-  });
-
+/**
+ * Prefix/filter/pipe/shutdown wiring, shared by createApp and test modules
+ * built with @nestjs/testing (which need provider overrides and therefore
+ * cannot use NestFactory directly).
+ */
+export function configureApp(app: INestApplication): INestApplication {
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new AllExceptionsFilter());
   // nestjs-zod v5 global pipe: any @Body()/@Query()/@Param() typed with a
@@ -29,6 +30,14 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // AllExceptionsFilter maps to the shared error envelope with `details`.
   app.useGlobalPipes(new ZodValidationPipe());
   app.enableShutdownHooks();
+  return app;
+}
+
+export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
+  const app = await NestFactory.create(AppModule, {
+    logger: options.logger ?? ['error', 'warn', 'log'],
+  });
+  configureApp(app);
 
   // Swagger UI at /api/docs. cleanupOpenApiDoc rewrites nestjs-zod DTO
   // schema output once zod DTOs appear on routes (engine wave).

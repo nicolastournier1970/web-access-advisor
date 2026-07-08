@@ -195,9 +195,9 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 - [ ] **Phase 2 — Core engine refactor** *(in progress)*:
   - [x] 2a Skeleton: `packages/engine` (`@waa/core`), `engine-types.ts` internal contracts (RecorderEvent/AnalyzeEvent unions, RecorderHandle, LlmProvider, AnalyzeControl).
   - [x] 2b Wave 1 leaf modules (commit `e982a7b`, 227 tests): storage (v1→v2 loader — all 59 real recordings upgrade), auth (config-driven classification, same-host fix), selector engine (ranked candidates, jsdom-tested), AuthCheckpointMachine (pure, full transition table), DOM-change detector + sensitive-value scrubber, LLM providers (undici REST Gemini, stub), browser detection (cookie-reading dropped).
-  - [ ] 2c Wave 2 *(running)*: recorder + injected script (redaction at source, auth segments) | replayer (candidate fallback, `redacted-credential` skip) + snapshotter (scrub-before-write). Real-browser smoke tests required.
-  - [ ] 2d Wave 3: analyzer orchestration + manifest-builder (step-join fix) + batching; barrel builds.
-  - [ ] 2e Parity harness vs golden sessions.
+  - [x] 2c Wave 2 (commit `812fe47`): recorder + injected script (in-page redaction, auth segments, storageState at segment end) | replayer (candidate fallback, structured outcomes, `redacted-credential` skip) + snapshotter (scrub-before-write). Real-browser smokes green.
+  - [x] 2d Wave 3 (commit `290cae2`): analyzer orchestration with pause-for-login (pause → validate live page → save storageState → retry paused action; cancel/timeout truncate), manifest-builder step-join fix (regression-tested), batching with progressive-summary fix. `@waa/core` barrel compiles; 365 engine tests.
+  - [x] 2e Parity gate GREEN (commit `46a7e1f`): all golden sessions pass — waa_test sessions identical snapshot steps + 100% axe overlap (needed serving `waa_test/` on :5500); public sessions 67–100% overlap (axe-version/live-site drift). Two fixes surfaced: login-wall false positive on pages with incidental password fields (now requires explicit failed-resolution signal) and per-action `actionOutcomes` added to the manifest. **Phase 2 complete.**
 - [ ] Phase 3 — NestJS API
 - [ ] Phase 4 — Angular shell + recording flow
 - [ ] Phase 5 — Analysis + results UI
