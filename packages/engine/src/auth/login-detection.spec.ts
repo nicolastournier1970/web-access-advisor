@@ -169,13 +169,16 @@ describe('detectLoginWall', () => {
     ).toEqual({ isLoginWall: true, reason: 'login-wall-detected' });
   });
 
-  it('flags a password field when target resolution outcome is unknown', () => {
+  it('does not flag a password field when target resolution outcome is unknown', () => {
+    // Semantics changed after a parity false-positive: only an explicit
+    // failed-resolution signal corroborates the password field. Unknown
+    // (e.g. after a navigation) must not pause the replay.
     expect(
       detectLoginWall(
         { url: 'https://hbsp-test.powerappsportals.com/dashboard', hasPasswordField: true },
         cfg,
       ),
-    ).toEqual({ isLoginWall: true, reason: 'login-wall-detected' });
+    ).toEqual({ isLoginWall: false });
   });
 
   it('does not flag a password field when the target resolved fine', () => {
@@ -186,6 +189,18 @@ describe('detectLoginWall', () => {
           hasPasswordField: true,
           targetResolutionFailed: false,
         },
+        cfg,
+      ),
+    ).toEqual({ isLoginWall: false });
+  });
+
+  it('does not flag a password field after a successful navigation (no resolution signal)', () => {
+    // Regression: a11y test fixtures legitimately contain password inputs;
+    // navigations resolve no target, so the signal is absent — that must NOT
+    // corroborate a login wall (parity sessions against waa_test/ paused here).
+    expect(
+      detectLoginWall(
+        { url: 'http://127.0.0.1:5500/waa_test/page1.html', hasPasswordField: true },
         cfg,
       ),
     ).toEqual({ isLoginWall: false });
@@ -205,7 +220,9 @@ describe('detectLoginWall', () => {
   });
 
   it('does not throw on malformed URLs and still honours the password signal', () => {
-    expect(detectLoginWall({ url: '::::', hasPasswordField: true }, cfg)).toEqual({
+    expect(
+      detectLoginWall({ url: '::::', hasPasswordField: true, targetResolutionFailed: true }, cfg),
+    ).toEqual({
       isLoginWall: true,
       reason: 'login-wall-detected',
     });

@@ -44,6 +44,23 @@ export const accessibilityContextSchema = z
 export const actionOutcomeSchema = z.enum(['executed', 'skipped', 'failed']);
 export type ActionOutcome = z.infer<typeof actionOutcomeSchema>;
 
+/**
+ * Per-action replay outcome (new in v2). Recorded for EVERY action, not just
+ * the ones that produced snapshots — stepDetails only cover snapshot steps, so
+ * without this list failed/skipped actions were invisible in the manifest.
+ */
+export const actionOutcomeRecordSchema = z
+  .object({
+    step: z.number().int(),
+    type: z.string(),
+    outcome: actionOutcomeSchema,
+    detail: z.string().optional(),
+    /** Locator strategy that resolved the target (e.g. 'role', 'css'). */
+    resolvedBy: z.string().optional(),
+  })
+  .catchall(z.unknown());
+export type ActionOutcomeRecord = z.infer<typeof actionOutcomeRecordSchema>;
+
 export const stepDetailSchema = z
   .object({
     step: z.number().int(),
@@ -123,6 +140,8 @@ export const sessionManifestSchema = z
     stepDetails: z.array(stepDetailSchema).default([]),
     actionGroups: z.array(actionGroupSchema).optional(),
     flowStatistics: flowStatisticsSchema.optional(),
+    /** New in v2: replay outcome for every recorded action (not just snapshot steps). */
+    actionOutcomes: z.array(actionOutcomeRecordSchema).optional(),
     llmOptimizations: z
       .object({
         authStepsFiltered: z.number().default(0),

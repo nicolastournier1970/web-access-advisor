@@ -164,10 +164,13 @@ export interface LoginWallSignals {
   /** Whether a visible password input exists on the page. */
   hasPasswordField: boolean;
   /**
-   * Whether the replayed action's target failed to resolve. `false` means the
-   * target resolved fine (a password field is then just page furniture, e.g. a
-   * login box in a site header); `undefined` means unknown and is treated as
-   * corroborating evidence.
+   * Whether the replayed action's target failed to resolve. Only an explicit
+   * `true` corroborates the password-field signal: a password field alone is
+   * page furniture (login box in a header, or an a11y test fixture with an
+   * intentional password input). `false`/`undefined` (e.g. after a successful
+   * navigation, which resolves no target) never trigger the wall — a genuine
+   * same-origin login wall is caught one action later, when the next recorded
+   * action's target (which lived on the expected page) fails to resolve.
    */
   targetResolutionFailed?: boolean;
 }
@@ -182,8 +185,9 @@ export interface LoginWallResult {
  * Decides whether the replay has been intercepted by a login wall. Navigation
  * to an auth URL is conclusive on its own ('auth-domain-navigation'); a
  * password field only counts ('login-wall-detected') when target resolution
- * did not explicitly succeed — a resolvable target means the expected page is
- * still there and the password field is incidental.
+ * explicitly FAILED — pages can legitimately contain password inputs (header
+ * login boxes, accessibility test fixtures), so an intact expected page must
+ * never pause the replay.
  */
 export function detectLoginWall(
   signals: LoginWallSignals,
@@ -192,7 +196,7 @@ export function detectLoginWall(
   if (isAuthUrl(signals.url, cfg)) {
     return { isLoginWall: true, reason: 'auth-domain-navigation' };
   }
-  if (signals.hasPasswordField && signals.targetResolutionFailed !== false) {
+  if (signals.hasPasswordField && signals.targetResolutionFailed === true) {
     return { isLoginWall: true, reason: 'login-wall-detected' };
   }
   return { isLoginWall: false };

@@ -162,6 +162,22 @@ export function buildManifest(input: BuildManifestInput): SessionManifest {
     timestamp: new Date().toISOString(),
     totalSteps: snapshots.length,
     stepDetails,
+    // Every recorded action's replay outcome — stepDetails only cover snapshot
+    // steps, so failed/skipped/unreached actions would otherwise be invisible.
+    actionOutcomes: recording.actions.map((action) => {
+      const outcome = outcomes.find((o) => o.step === action.step);
+      return {
+        step: action.step,
+        type: action.type,
+        outcome: outcome?.outcome ?? ('skipped' as const),
+        ...(outcome?.detail !== undefined
+          ? { detail: outcome.detail }
+          : outcome === undefined
+            ? { detail: 'not-reached' }
+            : {}),
+        ...(outcome?.resolvedBy !== undefined ? { resolvedBy: outcome.resolvedBy } : {}),
+      };
+    }),
     actionGroups: buildActionGroups(stepDetails),
     flowStatistics: {
       totalSteps: stepDetails.length,

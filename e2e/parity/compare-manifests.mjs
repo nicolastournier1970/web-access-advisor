@@ -128,14 +128,23 @@ async function runSession(sessionId) {
       : fail('P1 success+schema', parsed.error.message.slice(0, 300));
   }
 
-  // P2 outcomes
+  // P2 outcomes — prefer the full per-action list (covers non-snapshot steps)
   const steps = result.manifest?.stepDetails ?? [];
-  const outcomes = steps.filter((s) => s.actionOutcome);
-  const executed = steps.filter((s) => s.actionOutcome === 'executed').length;
-  const ratio = outcomes.length ? executed / outcomes.length : 1;
+  const allOutcomes =
+    result.manifest?.actionOutcomes ??
+    steps.filter((s) => s.actionOutcome).map((s) => ({ outcome: s.actionOutcome }));
+  const executed = allOutcomes.filter((o) => o.outcome === 'executed').length;
+  const ratio = allOutcomes.length ? executed / allOutcomes.length : 1;
   ratio >= 0.8
-    ? pass('P2 outcomes', `${executed}/${outcomes.length} executed`)
-    : fail('P2 outcomes', `only ${executed}/${outcomes.length} executed`);
+    ? pass('P2 outcomes', `${executed}/${allOutcomes.length} executed`)
+    : fail(
+        'P2 outcomes',
+        `only ${executed}/${allOutcomes.length} executed: ` +
+          allOutcomes
+            .filter((o) => o.outcome !== 'executed')
+            .map((o) => `step ${o.step} ${o.outcome}${o.detail ? ` (${o.detail})` : ''}`)
+            .join('; '),
+      );
 
   // P3 step-join: stepDetail.action must describe the recording action with the same step
   const byStep = new Map(recording.actions.map((a) => [a.step, a]));
