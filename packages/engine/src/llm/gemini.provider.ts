@@ -27,7 +27,11 @@ const DEFAULT_MODEL = 'gemini-2.0-flash';
 /** Max response-body characters quoted in HTTP error messages. */
 const ERROR_BODY_CHARS = 500;
 
-type FetchInit = RequestInit & { dispatcher?: Dispatcher };
+// @types/node ≥ 24 declares its own `dispatcher` on RequestInit via
+// undici-types, which is nominally incompatible with the undici package's
+// Dispatcher. Omit it before re-adding ours; undici receives the real
+// Dispatcher at runtime either way.
+type FetchInit = Omit<RequestInit, 'dispatcher'> & { dispatcher?: Dispatcher };
 
 /** Minimal shape of a generateContent response — only what we read. */
 interface GenerateContentResponse {
