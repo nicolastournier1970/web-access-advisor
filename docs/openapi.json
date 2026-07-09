@@ -1,0 +1,618 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service is up; body matches healthResponseSchema."
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/sessions/{id}/events": {
+      "get": {
+        "operationId": "EventsController_streamSessionEvents",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "last-event-id",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "operationId": "SessionsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sessions"
+        ]
+      },
+      "post": {
+        "operationId": "RecordingController_start",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRecordingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recording"
+        ]
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "operationId": "SessionsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sessions"
+        ]
+      },
+      "delete": {
+        "operationId": "SessionsController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/api/sessions/{id}/recording": {
+      "get": {
+        "operationId": "SessionsController_downloadRecording",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/api/sessions/{id}/snapshots/{step}/{file}": {
+      "get": {
+        "operationId": "SessionsController_serveSnapshotFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "step",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/api/sessions/{id}/recording/stop": {
+      "post": {
+        "operationId": "RecordingController_stop",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recording"
+        ]
+      }
+    },
+    "/api/sessions/{id}/recording/auth/start": {
+      "post": {
+        "operationId": "RecordingController_startAuthSegment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAuthSegmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recording"
+        ]
+      }
+    },
+    "/api/sessions/{id}/recording/auth/end": {
+      "post": {
+        "operationId": "RecordingController_endAuthSegment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Recording"
+        ]
+      }
+    },
+    "/api/sessions/{id}/analysis": {
+      "post": {
+        "operationId": "AnalysisController_start",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAnalysisDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analysis"
+        ]
+      },
+      "get": {
+        "operationId": "AnalysisController_getResult",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Analysis"
+        ]
+      }
+    },
+    "/api/sessions/{id}/replay/auth/continue": {
+      "post": {
+        "operationId": "ReplayController_continue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Replay"
+        ]
+      }
+    },
+    "/api/sessions/{id}/replay/auth/cancel": {
+      "post": {
+        "operationId": "ReplayController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Replay"
+        ]
+      }
+    },
+    "/api/browsers": {
+      "get": {
+        "operationId": "BrowsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Browsers"
+        ]
+      }
+    },
+    "/api/browsers/profile-probe": {
+      "post": {
+        "operationId": "BrowsersController_probe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileProbeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Browsers"
+        ]
+      }
+    },
+    "/api/sessions/{id}/storage-state/status": {
+      "get": {
+        "operationId": "StorageStateController_status",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "StorageState"
+        ]
+      }
+    },
+    "/api/sessions/{id}/storage-state/validate": {
+      "post": {
+        "operationId": "StorageStateController_validate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateStorageStateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "StorageState"
+        ]
+      }
+    },
+    "/api/storage-state/find": {
+      "get": {
+        "operationId": "StorageStateController_find",
+        "parameters": [
+          {
+            "name": "url",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uri",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "StorageState"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Web Access Advisor API",
+    "description": "Accessibility recording/replay/analysis API. Realtime updates stream over SSE at GET /api/sessions/{id}/events (ADR 0003).",
+    "version": "2.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "StartRecordingDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "browserType": {
+            "default": "chromium",
+            "type": "string",
+            "enum": [
+              "chromium",
+              "firefox",
+              "webkit"
+            ]
+          },
+          "browserName": {
+            "type": "string"
+          },
+          "useProfile": {
+            "default": false,
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "reuseStorageStateFrom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "StartAuthSegmentDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "default": "user-marked",
+            "type": "string",
+            "enum": [
+              "user-marked",
+              "auto-detected"
+            ]
+          },
+          "fromStep": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "StartAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "staticSectionMode": {
+            "default": "separate",
+            "type": "string",
+            "enum": [
+              "include",
+              "ignore",
+              "separate"
+            ]
+          },
+          "captureScreenshots": {
+            "default": true,
+            "type": "boolean"
+          },
+          "llmProvider": {
+            "type": "string",
+            "enum": [
+              "gemini",
+              "stub",
+              "none"
+            ]
+          }
+        }
+      },
+      "ProfileProbeDto": {
+        "type": "object",
+        "properties": {
+          "browserType": {
+            "type": "string",
+            "enum": [
+              "chromium",
+              "firefox",
+              "webkit"
+            ]
+          },
+          "browserName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "browserType",
+          "browserName"
+        ]
+      },
+      "ValidateStorageStateDto": {
+        "type": "object",
+        "properties": {
+          "probeUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "successSelector": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": true,
+            "maximum": 120000,
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

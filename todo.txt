@@ -1,4 +1,0 @@
-- doesn't log in the existing chrome session
-- seems to derail cloudflare verification
-- when there is an error the error message should truncate (or have a scrollbar) and show a reload button
- 

@@ -1,6 +1,4 @@
-// Flat ESLint config for the rewrite workspaces (apps/*, packages/shared, packages/core).
-// The legacy React app (src/) and Express server (server/) are intentionally not linted;
-// they are frozen and deleted at cutover (see docs/adr/0001).
+// Flat ESLint config for the workspaces (apps/*, packages/shared, packages/engine).
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
@@ -8,12 +6,8 @@ export default tseslint.config(
   {
     ignores: [
       'node_modules/**',
-      'dist/**',
       '**/dist/**',
       'snapshots/**',
-      'src/**',
-      'server/**',
-      'public/**',
       '**/*.js',
       '**/*.mjs',
     ],
@@ -59,13 +53,13 @@ export default tseslint.config(
   },
   {
     // Boundary: the engine never imports HTTP frameworks.
-    files: ['packages/core/**/*.ts'],
+    files: ['packages/engine/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
-            { group: ['@nestjs/*', 'express', '@angular/*'], message: 'packages/core communicates via typed events/callbacks, not HTTP frameworks.' },
+            { group: ['@nestjs/*', 'express', '@angular/*'], message: 'the engine (packages/engine) communicates via typed events/callbacks, not HTTP frameworks.' },
           ],
         },
       ],

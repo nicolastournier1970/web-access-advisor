@@ -1,254 +1,95 @@
 # Web Access Advisor
 
-A React-based accessibility testing tool that records user interactions, replays them with snapshot capture, and provides AI-powered accessibility analysis using Google Gemini.
+Record a browsing session in a real, headed browser; replay it with snapshot capture (HTML + axe-core + screenshots, gated by DOM-change detection); get AI-assisted accessibility findings merged with axe violations. Sessions persist under `./snapshots/<sessionId>/` and remain loadable across versions.
 
-## 🎯 Features
+The headline feature is first-class login handling:
 
-- **Record-First Approach**: Capture user interactions without slowing down the experience
-- **Smart DOM Change Detection**: Only snapshots when meaningful changes occur  
-- **Component-Focused Analysis**: AI analysis targeting 16+ interactive component types
-- **Before/After State Comparison**: Analyzes how components behave during interactions
-- **Axe-Core Integration**: Real accessibility testing with structured results
-- **Actionable Reports**: Provides actual HTML fixes, not just descriptions
+- **Auth segments at recording time** — mark "I'm logging in now" and every action in the segment is discarded before it reaches disk. Credentials never appear in `recording.json`; only a checkpoint marker and a saved `storageState.json` remain.
+- **Pause-for-login during replay** — when a replay hits a login wall, it pauses with the browser open, tells the UI, and waits for you to sign in. It then validates the live page, saves fresh storage state for reuse, and resumes from the paused step.
 
-## 🚀 Quick Start
+Stack: Angular (standalone, signals, zoneless) + NestJS + a framework-free Playwright engine, in plain npm workspaces. Decision records live in [docs/adr/](docs/adr/); the working plan is [docs/rewrite-plan.md](docs/rewrite-plan.md).
 
-### Installation
+## Quickstart (Windows)
 
-```bash
-# Clone the repository
+Prerequisites: Node.js 22.9+ (developed on 24.x) and npm.
+
+```bat
 git clone <repository-url>
 cd web-access-advisor
-
-# Install dependencies (triggers automatic browser download)
-npm install
+npm install          :: postinstall downloads the Chromium + Firefox Playwright browsers
+npm run build        :: builds packages/shared, packages/engine, apps/api, apps/web
+npm run dev
 ```
 
-> **Note**: The `postinstall` script automatically downloads Playwright browsers (~100MB) after `npm install` completes. This ensures consistent testing across all environments and CI/CD pipelines.
+`npm run dev` starts both apps:
 
-### Required Build Steps
+| What | Where |
+|---|---|
+| Web UI (Angular dev server) | http://localhost:4300 |
+| API (NestJS) | http://localhost:3002/api — health at [/api/health](http://localhost:3002/api/health) |
+| Swagger UI | http://localhost:3002/api/docs |
 
-Before starting the development servers, you need to build the required packages:
+The dev server proxies `/api` to port 3002, so the UI talks to the API with no CORS setup. AI analysis needs a `GEMINI_API_KEY` (see Configuration); without one the tool still works end-to-end using the stub provider (axe-only results, no cloud calls).
 
-```bash
-# Option A: Build everything (recommended)
-npm run build
+## How a session works
 
-# Option B: Build only what's needed
-npm run build:core    # Shared accessibility analysis engine
-npm run build:server  # Express API server
+1. **Record** — a headed Playwright browser opens; every click/type/navigation is captured with ranked locator candidates (`data-testid` → stable id → ARIA role+name → text → stable CSS → nth-child). Sensitive inputs never emit values. If you sign in during recording, toggle the login segment (or accept the auto-detect prompt) so credentials are discarded and a checkpoint marker is saved instead.
+2. **Analyze** — the recording is replayed step by step. Snapshots (scrubbed HTML, axe-core results, screenshot) are captured whenever the DOM changed meaningfully. If the replay lands on a login wall — a recorded auth checkpoint without valid saved login state, a configured auth domain, or the login-wall heuristic — it pauses and the UI shows a banner: sign in **in the open browser**, press Continue, and the replay resumes. Timeout defaults to 10 minutes.
+3. **Results** — AI findings (Gemini, batched with progressive context) merged with axe violations, per-step screenshots, corrected-code suggestions, CSV and print export.
+
+Formats and events are documented in [docs/recording-format.md](docs/recording-format.md) (recording.json v2, v1 compatibility, manifest layout) and [docs/sse-events.md](docs/sse-events.md) (the SSE catalog the UI consumes). A dedicated auth-flows document (state machine diagrams, storageState lifecycle, security posture) lands in Phase 8 of [docs/rewrite-plan.md](docs/rewrite-plan.md).
+
+## Configuration
+
+Copy `.env.example` to `.env` (all variables optional; `npm run dev` loads it via `node --env-file-if-exists`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GEMINI_API_KEY` | — | Enables Gemini analysis; unset → stub provider (axe-only) |
+| `LLM_PROVIDER` | derived | Force `gemini` or `stub` |
+| `HTTPS_PROXY` | — | Proxy for outbound Gemini requests only |
+| `API_PORT` | `3003` | NestJS port (the web proxy targets 3002) |
+| `SNAPSHOTS_DIR` | `./snapshots` | Session storage; relative to where the API starts (repo root) |
+| `AUTH_DOMAINS_CONFIG` | `./config/auth-domains.json` | Auth-domain classification patterns |
+| `PLAYWRIGHT_HEADLESS` | `false` | Headed by default — recording and pause-for-login need a visible browser |
+| `REPLAY_AUTH_TIMEOUT_MS` | `600000` | How long a paused replay waits for sign-in |
+
+[config/auth-domains.json](config/auth-domains.json) is user-editable: add your identity providers (hostname substrings and path patterns) and navigation to them is classified as authentication — no code change required.
+
+## Architecture
+
+| Workspace | Package | Responsibility |
+|---|---|---|
+| `apps/web` | `@waa/web` | Angular UI — setup, live recording feed, analysis progress, results. Talks to the API over HTTP/SSE only; never imports the engine |
+| `apps/api` | `@waa/api` | NestJS API — disk-backed session store, per-session workers, SSE event streams, Swagger at `/api/docs` |
+| `packages/shared` | `@waa/shared` | Zod v4 contracts — recording/manifest/analysis formats, API DTOs, SSE event union. Depends on zod only |
+| `packages/engine` | `@waa/core` | Playwright engine — recorder, replayer with auth checkpoints, snapshotter, axe + LLM analysis. No HTTP framework imports |
+
+```mermaid
+flowchart LR
+  web["apps/web<br/>Angular UI"] -- "HTTP + SSE (/api)" --> api["apps/api<br/>NestJS"]
+  api --> engine["packages/engine<br/>@waa/core"]
+  engine --> pw["Playwright<br/>(headed browser)"]
+  engine --> llm["Gemini / stub provider"]
+  engine --> disk[("snapshots/&lt;sessionId&gt;/")]
+  web -.-> shared["packages/shared<br/>zod contracts"]
+  api -.-> shared
+  engine -.-> shared
 ```
 
-### Start Development Environment
+Module boundaries are enforced by ESLint (`eslint.config.mjs`) and tsconfig path aliases — see [ADR 0002](docs/adr/0002-npm-workspaces-not-nx.md).
 
-```bash
-npm run dev:full
+## Testing
+
+```bat
+npm test                                 :: all four workspaces
+npm run test -w packages/shared          :: or any single workspace
 ```
 
-This starts both:
-- **Frontend**: http://localhost:5173/ (React development server)
-- **Backend**: http://localhost:3001/ (Express API server)
+- `packages/engine` includes real-browser smoke tests; set `WAA_SKIP_BROWSER_TESTS=1` to run only the fast unit tests.
+- **Parity harness** — replays golden sessions from `./snapshots/` through the engine and compares against the committed v1 artifacts (action outcomes, step joins, axe rule-id overlap). Needs network access (golden sessions target live public sites): `npm run parity -- <sessionId>` (no args = all golden sessions). See `e2e/parity/compare-manifests.mjs` for the pass criteria.
+- **Fixture site** — a static site with intentional a11y violations and a cookie-based fake login, used by the auth e2e tests: `npm run fixture:serve -- 5600` (default port 4300 collides with the dev server; pass a port when the UI is running).
 
-Expected output:
-```
-[0] Server listening on port 3001
-[1] Frontend ready at http://localhost:5173/
-```
+## Legacy (v1)
 
-## 📋 Available Scripts
-
-```bash
-# Development
-npm run dev           # Frontend only (Vite)
-npm run dev:server    # Backend only (Express)
-npm run dev:full      # Both frontend and backend
-npm run dev:cli       # CLI development mode
-
-# Building
-npm run build         # Build all packages + frontend
-npm run build:core    # Build core analysis engine
-npm run build:server  # Build Express server
-npm run build:cli     # Build CLI tool
-
-# Other
-npm run preview       # Preview production build
-npm run cli           # Run CLI tool
-```
-
-## 🏗️ Architecture
-
-### Monorepo Structure
-- **Root**: React frontend application
-- **packages/core**: Shared accessibility analysis engine
-- **packages/cli**: Command-line interface
-- **server**: Express API server
-
-### Core Technologies
-- **React 18** - Modern functional components with hooks
-- **Playwright** - Browser automation and recording
-- **Axe-Core** - Accessibility testing engine  
-- **Google Gemini** - AI-powered accessibility analysis
-- **Tailwind CSS** - Utility-first styling
-- **Vite** - Fast development and build tooling
-
-## 🔐 Browser Profile Sharing
-
-Web Access Advisor supports **authenticated session testing** through browser profile sharing, allowing you to test logged-in workflows without re-authentication during analysis.
-
-### How Profile Sharing Works
-
-**Profile Detection:**
-- Automatically detects available browser profiles (Chrome, Edge, Firefox)
-- Shows login status for each browser on your system
-- Indicates which browsers have active sessions for tested domains
-
-**Recording with Profiles:**
-- Check "Use Profile" when recording authenticated workflows
-- Browser launches with your existing login session (cookies, tokens, etc.)
-- No need to log in again during recording - you're already authenticated
-
-**Analysis Consistency:**
-- Analysis phase uses the **same browser profile** as recording
-- Maintains authentication state between recording and analysis
-- Ensures analysis captures the same pages you recorded (not login screens)
-
-### Supported Browsers
-
-| Browser | Profile Support | Session Sharing | Notes |
-|---------|----------------|-----------------|-------|
-| **Microsoft Edge** | ✅ Full | ✅ Reliable | Recommended for enterprise SSO |
-| **Google Chrome** | ✅ Full | ✅ Enhanced | Improved profile detection |
-| **Firefox** | ⚠️ Limited | ❌ Not Yet | Profile detection only |
-
-### Authentication Flow Options
-
-**Option 1: Profile Sharing (Recommended for Auth)**
-```
-1. Already logged in to Chrome/Edge → Check "Use Profile" 
-2. Recording launches with existing session → Record workflow
-3. Analysis uses same profile → Maintains login throughout
-4. Results show authenticated pages → Accurate analysis
-```
-
-**Option 2: Manual Login (Public Workflows)**
-```
-1. Don't check "Use Profile" → Clean browser launches
-2. Log in manually during recording → Record workflow  
-3. Analysis uses clean browser → Hits login walls
-4. Results may show login pages → Less accurate for auth workflows
-```
-
-### Best Practices
-
-**For Authenticated Workflows:**
-- ✅ **Always use profile sharing** for login-required sites
-- ✅ **Verify login status** shown in browser selection
-- ✅ **Close browser instances** before recording to avoid profile locks
-- ✅ **Use Chrome or Edge** for best profile compatibility
-
-## StorageState export & replay validation
-
-To make replays reuse authenticated sessions without requiring manual remote-debugging, Web Access Advisor now exports and validates Playwright storageState for recordings.
-
-- When a recording stops we export the Playwright storage state (cookies + localStorage) to `./snapshots/<sessionId>/storageState.json`.
-- The backend exposes two helper endpoints:
-	- `GET /api/sessions/:id/storage-state/status` — quick status (present/expired/earliest expiry) based on saved cookies.
-	- `POST /api/sessions/:id/storage-state/validate` — deep validation: the server loads the saved storageState into a temporary Playwright context, navigates to a probe URL and optionally waits for a selector to confirm the login is usable.
-- Frontend flows:
-	- Recording: sign in while recording if you want replays to reuse your login — we save the login state at stop (storageState.json).
-	- Replay: use the "Validate" button in the replay controls to check the saved state. If validation fails, the UI offers a lightweight "Re-login" detour that opens the browser for an interactive sign-in and saves a new storageState for the session.
-
-Notes:
-- We avoid logging cookie values or other secrets; validation is a behavioural probe (navigation + selector) rather than cookie inspection.
-- Edge profile sharing remains the most reliable path for reusing local sign-in state on Windows; Chrome storageState is saved and validated but persistent-profile reuse may have platform-specific fallbacks.
-
-**For Public Workflows:**  
-- ✅ **Clean browser is fine** for public sites
-- ✅ **Faster startup** without profile loading
-- ✅ **No authentication dependencies**
-
-### Troubleshooting Profile Issues
-
-**"Profile not accessible" errors:**
-- Close all browser instances before recording
-- Ensure browser isn't running in background
-- Try different browser (Edge often more reliable than Chrome)
-
-**Analysis shows login pages instead of recorded content:**
-- Recording was likely done without profile sharing
-- Re-record with "Use Profile" enabled
-- Verify login status before starting analysis
-
-**Chrome profile sharing not working:**
-- Chrome can have stricter profile locking
-- Try Microsoft Edge instead (same engine, better profile access)
-- Ensure Chrome isn't running when starting recording
-
-## 🧠 LLM Integration
-
-The system uses Google Gemini for intelligent accessibility analysis:
-
-- **Component Detection**: Automatically identifies interactive components (dropdowns, modals, tabs, etc.)
-- **State Analysis**: Compares before/after DOM states during interactions
-- **WCAG Compliance**: Provides expert-level accessibility assessments
-- **Code Fixes**: Shows actual corrected HTML code examples
-- **Screen Reader Focus**: Targets assistive technology compatibility
-
-## 🔧 Environment Setup
-
-### Automatic Setup
-Playwright browsers are automatically installed during `npm install` via the `postinstall` script. This ensures:
-- ✅ Consistent browser versions across environments
-- ✅ Reliable CI/CD pipeline execution  
-- ✅ No manual browser installation steps
-
-### Environment Variables
-Create a `.env` file in the root directory:
-
-```env
-# Gemini AI (for accessibility analysis)
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Optional: Gemini HTML size limit (bytes, default 1MB)
-GEMINI_HTML_MAX_SIZE=1048576
-
-# Optional: OpenAI (for auto-playwright)
-OPENAI_API_KEY=sk-proj-...
-
-# App Configuration
-VITE_APP_NAME=Web Access Advisor
-VITE_APP_VERSION=2.0.0
-NODE_ENV=development
-```
-
-## 📖 Usage
-
-1. **Build required packages** (see Quick Start above)
-2. **Start development environment**: `npm run dev:full`
-3. **Open frontend**: http://localhost:5173/
-4. **Record interactions**: Enter URL and start recording
-5. **Analyze accessibility**: Run replay with AI analysis enabled
-6. **Review results**: Get component-specific fixes and recommendations
-
-## 🧪 Core Workflow
-
-### Recording Phase (Real-time)
-- User enters URL → Navigate to page
-- User interactions → Capture actions to JSON
-- Live action feed → Smooth UX experience
-
-### Analysis Phase (Background)
-- Replay actions via Playwright
-- Smart DOM change detection
-- Capture HTML + run Axe-core tests
-- AI analysis with before/after comparison
-- Generate structured accessibility reports
-
-## 📚 Documentation
-
-- [PLANNING.md](PLANNING.md) - Detailed project architecture and workflow
-- [TASK.md](TASK.md) - Development progress and completed features
-
-## 🤝 Contributing
-
-This project follows modern React and TypeScript best practices with a focus on accessibility-first development.
+The original React + Express implementation was removed from this branch at cutover. It is fully preserved at the git tag `v1-legacy` and on `main` — `git checkout v1-legacy` restores it. Sessions recorded by v1 under `snapshots/` remain loadable: the engine upgrades the v1 recording format in memory and never rewrites the files ([docs/recording-format.md](docs/recording-format.md)).

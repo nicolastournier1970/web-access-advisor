@@ -5,7 +5,7 @@ import { loadEnv } from '../dist/config/env.js';
 describe('env schema', () => {
   it('applies documented defaults on an empty environment', () => {
     expect(loadEnv({})).toMatchObject({
-      API_PORT: 3003, // legacy Express server keeps 3002 until cutover
+      API_PORT: 3002, // legacy Express server keeps 3002 until cutover
       NODE_ENV: 'development',
       LLM_PROVIDER: 'stub',
       SNAPSHOTS_DIR: './snapshots',
@@ -39,7 +39,7 @@ describe('env schema', () => {
 
   it('treats empty-string values as unset', () => {
     const env = loadEnv({ GEMINI_API_KEY: '', API_PORT: '', PLAYWRIGHT_HEADLESS: '' });
-    expect(env.API_PORT).toBe(3003);
+    expect(env.API_PORT).toBe(3002);
     expect(env.LLM_PROVIDER).toBe('stub');
     expect(env.PLAYWRIGHT_HEADLESS).toBe(false);
   });

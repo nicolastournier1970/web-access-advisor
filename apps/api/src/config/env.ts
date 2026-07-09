@@ -11,10 +11,10 @@ import { z } from 'zod';
 export const envSchema = z
   .object({
     /**
-     * 3003 by default: the legacy Express server owns 3002 until the Phase 7
-     * cutover (docs/rewrite-plan.md).
+     * 3002 — the canonical API port since the Phase 7 cutover freed it from
+     * the legacy Express server (the web dev proxy targets it).
      */
-    API_PORT: z.coerce.number().int().positive().default(3003),
+    API_PORT: z.coerce.number().int().positive().default(3002),
     NODE_ENV: z.string().default('development'),
     GEMINI_API_KEY: z.string().optional(),
     /**
