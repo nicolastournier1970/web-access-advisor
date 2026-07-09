@@ -10,7 +10,17 @@
  *  - the initial navigation is recorded exactly once (via `framenavigated`,
  *    never as an additional manual action);
  *  - sensitive input values arrive already redacted from the page, and a
- *    recorder-side backstop re-redacts any password-typed fill.
+ *    recorder-side backstop re-redacts any password-typed fill;
+ *  - launch degradations (profile unusable, saved login unreadable) are NEVER
+ *    silent: the recording proceeds on a clean browser but a `warning` event
+ *    is emitted so the UI can tell the user their logins are absent;
+ *  - capture bridges + init script are wired at CONTEXT level, and every page
+ *    the context opens (popups, target=_blank tabs — SSO flows live there) is
+ *    wired for main-frame navigation recording. Popups contribute actions and
+ *    navigations to the recording, but `currentUrl()` keeps reporting the
+ *    ORIGINAL page's URL (the UI's current-url display contract), and closing
+ *    a popup never ends the session — only closing the whole browser/context
+ *    does.
  *
  * Everything Playwright-facing is expressed against the narrow *Like
  * interfaces below and the injectable `launch` dep, so the wiring is
@@ -50,24 +60,35 @@ export interface RecorderFrameLike {
 export interface RecorderPageLike {
   url(): string;
   isClosed(): boolean;
-  exposeFunction(name: string, callback: (payload: unknown) => unknown): Promise<unknown>;
-  addInitScript(script: string): Promise<unknown>;
   goto(url: string): Promise<unknown>;
   bringToFront(): Promise<unknown>;
   close(): Promise<unknown>;
   on(event: 'framenavigated', handler: (frame: RecorderFrameLike) => void): unknown;
+  on(event: 'close', handler: () => void): unknown;
   mainFrame(): RecorderFrameLike;
 }
 
 export interface RecorderContextLike {
   /** Returns the live storage state OBJECT; the recorder encrypts it to disk itself. */
   storageState(): Promise<unknown>;
+  /** Context-level bridge: available on every page the context opens (incl. popups). */
+  exposeFunction(name: string, callback: (payload: unknown) => unknown): Promise<unknown>;
+  /** Context-level init script: evaluated in every page/navigation (incl. popups). */
+  addInitScript(script: string): Promise<unknown>;
   close(): Promise<unknown>;
   on(event: 'close', handler: () => void): unknown;
+  /** Fired for pages opened after subscription (popups, target=_blank tabs). */
+  on(event: 'page', handler: (page: RecorderPageLike) => void): unknown;
 }
 
 export interface RecorderBrowserLike {
   close(): Promise<unknown>;
+}
+
+/** A launch degradation the user must learn about (mirrors RecorderEvent 'warning'). */
+export interface RecorderWarning {
+  message: string;
+  reason: 'profile-unavailable' | 'storage-state-unavailable';
 }
 
 /** What a launcher must hand back; `browser` is absent for persistent contexts. */
@@ -75,6 +96,8 @@ export interface RecorderLaunchResult {
   browser?: RecorderBrowserLike;
   context: RecorderContextLike;
   page: RecorderPageLike;
+  /** Degradations to surface as 'warning' events (the recording proceeds). */
+  warnings?: RecorderWarning[];
 }
 
 /** Injectable seams for tests; production callers pass nothing. */
@@ -136,15 +159,25 @@ function legacySelector(candidates: TargetCandidate[]): string | undefined {
 
 const CHROMIUM_ARGS = ['--no-first-run', '--no-default-browser-check'];
 
+/** Degradation wording — kept aligned with the analyzer's launch warnings. */
+const PROFILE_WARNING =
+  'Requested browser profile could not be used; continuing with a clean browser session.';
+
 /**
  * Real launcher. Paths, in priority order:
  *  1. `reuseStorageStatePath` → clean launch of the REQUESTED browser type +
- *     `newContext({ storageState })` (validated reuse; failures propagate).
+ *     `newContext({ storageState })`. An unreadable/undecryptable file (e.g.
+ *     copied from another machine/user) does NOT abort the recording: it falls
+ *     through to the profile/clean paths carrying a `storage-state-unavailable`
+ *     warning (same behaviour and wording as the analyzer's launch).
  *  2. `useProfile` with a detectable profile → persistent context. Edge/Chrome
  *     profiles run on the bundled chromium binary (legacy-proven combination);
- *     firefox uses `firefox.launchPersistentContext`. webkit has no persistent
- *     contexts and a locked/broken profile falls through to a clean launch.
+ *     firefox uses `firefox.launchPersistentContext`. A missing/locked/broken
+ *     profile — and webkit, which has no persistent contexts — falls through
+ *     to a clean launch carrying a `profile-unavailable` warning.
  *  3. Clean launch + fresh context.
+ * Degradations are never silent: every fallback is reported via the returned
+ * `warnings`, which {@link createRecorder} emits as 'warning' events.
  * Headed chromium gets `viewport: null` + `--start-maximized` for natural
  * window sizing. `playwright` is imported lazily so unit tests with an
  * injected launcher never load the browser driver.
@@ -165,21 +198,35 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
         : [...CHROMIUM_ARGS, '--start-maximized']
       : [];
   const viewportOption = headless ? {} : { viewport: null };
+  const warnings: RecorderWarning[] = [];
 
   if (options.reuseStorageStatePath !== undefined) {
     // Decrypt (or legacy-plaintext read) and seed the context with the OBJECT
-    // form; read failures propagate — this is validated reuse.
-    const storageState = await readStorageStateFile(options.reuseStorageStatePath);
-    const browser = await engine.launch({ headless, args });
-    const context = await browser.newContext({
-      storageState,
-      ...viewportOption,
-    });
-    return { browser, context, page: await context.newPage() };
+    // form. A read failure degrades (with a warning) instead of aborting — the
+    // user still gets their recording, just without the saved login.
+    let storageState: Awaited<ReturnType<typeof readStorageStateFile>> | undefined;
+    try {
+      storageState = await readStorageStateFile(options.reuseStorageStatePath);
+    } catch (error) {
+      warnings.push({
+        reason: 'storage-state-unavailable',
+        message: `Saved login could not be loaded (${describeError(error)}); continuing without it.`,
+      });
+    }
+    if (storageState !== undefined) {
+      const browser = await engine.launch({ headless, args });
+      const context = await browser.newContext({
+        storageState,
+        ...viewportOption,
+      });
+      return { browser, context, page: await context.newPage() };
+    }
   }
 
-  if (options.useProfile && options.browserType !== 'webkit') {
-    const profilePath = await findProfilePath(options);
+  if (options.useProfile) {
+    // webkit has no persistent contexts — profile requested but unusable.
+    const profilePath =
+      options.browserType !== 'webkit' ? await findProfilePath(options) : undefined;
     if (profilePath !== undefined) {
       try {
         // Edge/Chrome profiles launch with the bundled chromium binary.
@@ -191,16 +238,23 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
           ...viewportOption,
         });
         const page = context.pages()[0] ?? (await context.newPage());
-        return { context, page };
+        return { context, page, warnings };
       } catch {
         // Profile locked by a running browser, or unusable → clean fallback.
       }
     }
+    warnings.push({ reason: 'profile-unavailable', message: PROFILE_WARNING });
   }
 
   const browser = await engine.launch({ headless, args });
   const context = await browser.newContext(viewportOption);
-  return { browser, context, page: await context.newPage() };
+  return { browser, context, page: await context.newPage(), warnings };
+}
+
+/** Compact error text (bounded, never throws). */
+function describeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.length > 300 ? `${message.slice(0, 297)}...` : message;
 }
 
 /** Profile directory for the requested browser via detectBrowsers; undefined = none. */
@@ -229,9 +283,14 @@ async function findProfilePath(options: RecorderOptions): Promise<string | undef
  * Launch the recording browser, wire the capture bridges, navigate to
  * `options.url` and return the live {@link RecorderHandle}. The initial
  * navigation is recorded as step 1 by the `framenavigated` listener — no
- * manual navigate action is pushed. Fails (and closes the browser) if the
- * initial wiring or navigation fails. The optional `deps` parameter is a
- * test-only seam.
+ * manual navigate action is pushed. Bridges + init script are installed at
+ * CONTEXT level and `context.on('page')` wires every later page (popups /
+ * target=_blank tabs), so popup interactions and navigations are recorded
+ * too; `currentUrl()` still reports the ORIGINAL page's URL and closing a
+ * popup never emits `closed`. Launch degradations arrive as 'warning' events
+ * before the first navigation. Fails (and closes the browser) if the initial
+ * wiring or navigation fails. The optional `deps` parameter is a test-only
+ * seam.
  */
 export async function createRecorder(
   options: RecorderOptions,
@@ -241,7 +300,7 @@ export async function createRecorder(
   await mkdir(paths.root, { recursive: true });
 
   const state = new RecorderState(deps.clock);
-  const { browser, context, page } = await (deps.launch ?? defaultLaunch)(options);
+  const { browser, context, page, warnings = [] } = await (deps.launch ?? defaultLaunch)(options);
 
   let stopping = false;
   let stoppedRecording: ReturnType<RecorderState['toRecording']> | null = null;
@@ -328,7 +387,46 @@ export async function createRecorder(
     }
   };
 
+  // Every live page in the context (initial + popups). Pages remove themselves
+  // on close, so closeAll never touches already-closed popups.
+  const livePages = new Set<RecorderPageLike>();
+
+  /**
+   * Wire main-frame navigation recording for one page. Guarded by `livePages`
+   * so the initial page (wired explicitly below) is never double-wired when it
+   * also arrives via `context.on('page')` — one real navigation, one action.
+   */
+  const wirePage = (target: RecorderPageLike): void => {
+    if (livePages.has(target)) return;
+    livePages.add(target);
+    target.on('framenavigated', (frame: RecorderFrameLike) => {
+      if (frame !== target.mainFrame()) return;
+      let url = '';
+      try {
+        url = frame.url();
+      } catch {
+        return;
+      }
+      if (url === '' || url === 'about:blank') return;
+      const action = state.addAction({ type: 'navigate', url, metadata: { actionType: 'navigation' } });
+      emit({ type: 'navigated', url, ...(action !== null ? { step: action.step } : {}) });
+      if (isAuthUrl(url, options.authConfig)) emitAuthSuspected('auth-domain-navigation', url);
+    });
+    // A closing POPUP is just bookkeeping — the session only ends via the
+    // context 'close' path (or stop()), never from a popup's close.
+    target.on('close', () => {
+      livePages.delete(target);
+    });
+  };
+
   const closeAll = async (): Promise<void> => {
+    for (const openPage of [...livePages]) {
+      try {
+        await openPage.close();
+      } catch {
+        /* already closed */
+      }
+    }
     try {
       await page.close();
     } catch {
@@ -349,23 +447,20 @@ export async function createRecorder(
   };
 
   try {
-    await page.exposeFunction('__waaRecord', handleRecord);
-    await page.exposeFunction('__waaAuthSuspect', handleAuthSuspect);
-    await page.addInitScript(buildRecorderScript());
+    // Launch degradations first: the consumer's onEvent is already attached,
+    // so the "recording without your logins" warning precedes any action.
+    for (const warning of warnings) {
+      emit({ type: 'warning', message: warning.message, reason: warning.reason });
+    }
 
-    page.on('framenavigated', (frame) => {
-      if (frame !== page.mainFrame()) return;
-      let url = '';
-      try {
-        url = frame.url();
-      } catch {
-        return;
-      }
-      if (url === '' || url === 'about:blank') return;
-      const action = state.addAction({ type: 'navigate', url, metadata: { actionType: 'navigation' } });
-      emit({ type: 'navigated', url, ...(action !== null ? { step: action.step } : {}) });
-      if (isAuthUrl(url, options.authConfig)) emitAuthSuspected('auth-domain-navigation', url);
-    });
+    // Context-level bridges + init script: inherited by every page the context
+    // opens, so popup interactions (SSO windows, target=_blank) are captured.
+    await context.exposeFunction('__waaRecord', handleRecord);
+    await context.exposeFunction('__waaAuthSuspect', handleAuthSuspect);
+    await context.addInitScript(buildRecorderScript());
+
+    wirePage(page);
+    context.on('page', (popup: RecorderPageLike) => wirePage(popup));
 
     context.on('close', () => {
       if (!stopping) emit({ type: 'closed', reason: 'browser-closed' });
@@ -400,6 +495,8 @@ export async function createRecorder(
   return {
     sessionId: options.sessionId,
 
+    // UI contract: always the ORIGINAL page's URL — popups contribute actions
+    // and navigations to the recording but never the current-url display.
     async currentUrl(): Promise<string | null> {
       return safeUrl();
     },

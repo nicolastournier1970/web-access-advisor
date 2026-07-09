@@ -115,6 +115,25 @@ describe('RecordingStore', () => {
     expect(store.authSegmentActive()).toBe(false);
   });
 
+  it('recording.warning surfaces persistently, announces assertively, and is dismissible', async () => {
+    await startRecording();
+    events.next({
+      type: 'recording.warning',
+      message: 'Profile locked — recording with a clean browser',
+      reason: 'profile-unavailable',
+    });
+    expect(store.recordingWarning()).toEqual({
+      message: 'Profile locked — recording with a clean browser',
+      reason: 'profile-unavailable',
+    });
+    expect(announce).toHaveBeenCalledWith(
+      expect.stringContaining('Recording continues without your saved logins'),
+      'assertive',
+    );
+    store.dismissRecordingWarning();
+    expect(store.recordingWarning()).toBeNull();
+  });
+
   it('recording.auth_suspected surfaces prompt data (unless a segment is active)', async () => {
     await startRecording();
     events.next({

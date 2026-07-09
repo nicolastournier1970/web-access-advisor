@@ -35,6 +35,18 @@ export type RecorderEvent =
       suspectedAtStep: number;
     }
   | { type: 'auth-segment'; state: 'started' | 'ended'; checkpoint: AuthCheckpoint }
+  /**
+   * The launch degraded: the recording browser is NOT carrying the logins the
+   * user asked for (profile fallback / unreadable saved login). The recording
+   * proceeds — this event exists so the degradation is never silent (the v1
+   * failure class: users recorded "with their logins" against a clean browser
+   * and only found out when the analysis showed login pages).
+   */
+  | {
+      type: 'warning';
+      message: string;
+      reason: 'profile-unavailable' | 'storage-state-unavailable';
+    }
   | { type: 'closed'; reason: 'stopped' | 'browser-closed' | 'error'; error?: string };
 
 export type AnalyzeEvent =

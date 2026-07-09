@@ -1,6 +1,7 @@
 /**
  * Screen-reader announcements via CDK LiveAnnouncer (ADR 0007).
- * Recording phase changes and auth-segment transitions are announced politely.
+ * Phase changes and auth-segment transitions are announced politely;
+ * trust-critical degradations (recording without saved logins) assertively.
  */
 import { Injectable, inject } from '@angular/core';
 import { LiveAnnouncer } from '@angular/cdk/a11y';
@@ -9,7 +10,7 @@ import { LiveAnnouncer } from '@angular/cdk/a11y';
 export class AnnouncerService {
   private readonly liveAnnouncer = inject(LiveAnnouncer);
 
-  announce(message: string): void {
-    void this.liveAnnouncer.announce(message, 'polite');
+  announce(message: string, politeness: 'polite' | 'assertive' = 'polite'): void {
+    void this.liveAnnouncer.announce(message, politeness);
   }
 }

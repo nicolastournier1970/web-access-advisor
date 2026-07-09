@@ -152,6 +152,15 @@ export class RecordingService {
           actionCount: event.actionCount,
         });
         return;
+      case 'warning':
+        // Trust-critical: recording proceeds WITHOUT saved logins (v1's silent
+        // fallback failure class) — the UI must surface this prominently.
+        this.events.publish(sessionId, {
+          type: 'recording.warning',
+          message: event.message,
+          reason: event.reason,
+        });
+        return;
       case 'navigated':
         this.events.publish(sessionId, {
           type: 'recording.navigated',

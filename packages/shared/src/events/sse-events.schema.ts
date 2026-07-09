@@ -37,6 +37,16 @@ export const sseEventSchema = z.discriminatedUnion('type', [
     state: z.enum(['started', 'ended']),
     checkpointId: z.string(),
   }),
+  /**
+   * Trust-critical degradation notice: the recording proceeds but WITHOUT the
+   * user's saved logins (profile locked/missing, or saved login unreadable).
+   * Silent fallback was the v1 failure class this event exists to kill.
+   */
+  z.object({
+    type: z.literal('recording.warning'),
+    message: z.string(),
+    reason: z.enum(['profile-unavailable', 'storage-state-unavailable']),
+  }),
 
   // ---- Analysis / replay progress ----
   z.object({

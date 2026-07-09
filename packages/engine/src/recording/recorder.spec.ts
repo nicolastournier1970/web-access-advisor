@@ -43,25 +43,18 @@ class FakeFrame implements RecorderFrameLike {
 }
 
 class FakePage {
-  readonly exposed = new Map<string, (payload: unknown) => unknown>();
-  readonly initScripts: string[] = [];
   readonly gotoUrls: string[] = [];
   closed = false;
   gotoError: Error | null = null;
   private readonly frame = new FakeFrame('about:blank');
   private readonly navHandlers: Array<(frame: RecorderFrameLike) => void> = [];
+  private readonly closeHandlers: Array<() => void> = [];
 
   url(): string {
     return this.frame.url();
   }
   isClosed(): boolean {
     return this.closed;
-  }
-  async exposeFunction(name: string, callback: (payload: unknown) => unknown): Promise<void> {
-    this.exposed.set(name, callback);
-  }
-  async addInitScript(script: string): Promise<void> {
-    this.initScripts.push(script);
   }
   async goto(url: string): Promise<void> {
     if (this.gotoError) throw this.gotoError;
@@ -70,10 +63,18 @@ class FakePage {
   }
   async bringToFront(): Promise<void> {}
   async close(): Promise<void> {
+    if (this.closed) return;
     this.closed = true;
+    for (const handler of this.closeHandlers) handler();
   }
-  on(_event: 'framenavigated', handler: (frame: RecorderFrameLike) => void): this {
-    this.navHandlers.push(handler);
+  on(event: 'framenavigated', handler: (frame: RecorderFrameLike) => void): this;
+  on(event: 'close', handler: () => void): this;
+  on(event: 'framenavigated' | 'close', handler: unknown): this {
+    if (event === 'framenavigated') {
+      this.navHandlers.push(handler as (frame: RecorderFrameLike) => void);
+    } else {
+      this.closeHandlers.push(handler as () => void);
+    }
     return this;
   }
   mainFrame(): RecorderFrameLike {
@@ -84,20 +85,21 @@ class FakePage {
     this.frame.setUrl(url);
     for (const handler of this.navHandlers) handler(this.frame);
   }
-  /** Simulate an in-page bridge call arriving over exposeFunction. */
-  bridge(name: string, payload: unknown): void {
-    this.exposed.get(name)?.(payload);
-  }
 }
 
 /** Cookie value the fake context reports — must NEVER appear raw on disk. */
 export const FAKE_COOKIE_VALUE = 'fake-cookie-value-do-not-persist';
 
 class FakeContext implements RecorderContextLike {
+  /** Context-level bridges (v2: exposeFunction lives on the context). */
+  readonly exposed = new Map<string, (payload: unknown) => unknown>();
+  /** Context-level init scripts (inherited by every page incl. popups). */
+  readonly initScripts: string[] = [];
   storageStateCalls = 0;
   storageStateError: Error | null = null;
   closed = false;
   private readonly closeHandlers: Array<() => void> = [];
+  private readonly pageHandlers: Array<(page: FakePage) => void> = [];
 
   async storageState(): Promise<unknown> {
     if (this.storageStateError) throw this.storageStateError;
@@ -118,14 +120,40 @@ class FakeContext implements RecorderContextLike {
       origins: [],
     };
   }
+  async exposeFunction(name: string, callback: (payload: unknown) => unknown): Promise<void> {
+    this.exposed.set(name, callback);
+  }
+  async addInitScript(script: string): Promise<void> {
+    this.initScripts.push(script);
+  }
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     for (const handler of this.closeHandlers) handler();
   }
-  on(_event: 'close', handler: () => void): this {
-    this.closeHandlers.push(handler);
+  on(event: 'close', handler: () => void): this;
+  on(event: 'page', handler: (page: FakePage) => void): this;
+  on(event: 'close' | 'page', handler: unknown): this {
+    if (event === 'close') {
+      this.closeHandlers.push(handler as () => void);
+    } else {
+      this.pageHandlers.push(handler as (page: FakePage) => void);
+    }
     return this;
+  }
+  /** Simulate an in-page bridge call arriving over the context exposeFunction. */
+  bridge(name: string, payload: unknown): void {
+    this.exposed.get(name)?.(payload);
+  }
+  /** Fire the 'page' event (a popup opened, or a replayed initial page). */
+  emitPage(page: FakePage): void {
+    for (const handler of this.pageHandlers) handler(page);
+  }
+  /** Open a popup: new FakePage announced via the 'page' event. */
+  openPopup(): FakePage {
+    const popup = new FakePage();
+    this.emitPage(popup);
+    return popup;
   }
 }
 
@@ -188,9 +216,9 @@ describe('createRecorder wiring', () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
 
-    expect(h.page.exposed.has('__waaRecord')).toBe(true);
-    expect(h.page.exposed.has('__waaAuthSuspect')).toBe(true);
-    expect(h.page.initScripts).toContain(buildRecorderScript());
+    expect(h.context.exposed.has('__waaRecord')).toBe(true);
+    expect(h.context.exposed.has('__waaAuthSuspect')).toBe(true);
+    expect(h.context.initScripts).toContain(buildRecorderScript());
     expect(h.page.gotoUrls).toEqual(['https://app.example/start']);
 
     // The initial navigation is recorded ONCE, via framenavigated (step 1).
@@ -221,7 +249,7 @@ describe('createRecorder wiring', () => {
       },
     });
     const handle = await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaRecord', { kind: 'click', candidates: [] });
+    h.context.bridge('__waaRecord', { kind: 'click', candidates: [] });
     expect(handle.getActions()).toHaveLength(2);
   });
 });
@@ -230,7 +258,7 @@ describe('bridge payload handling', () => {
   it('sanitizes candidates and records a click with target + legacy selector', async () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaRecord', {
+    h.context.bridge('__waaRecord', {
       kind: 'click',
       candidates: [
         { strategy: 'id', value: 'save-btn' },
@@ -264,7 +292,7 @@ describe('bridge payload handling', () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
     for (const junk of [null, 42, 'click', {}, { kind: 'explode' }, { kind: 'fill', value: 1 }]) {
-      h.page.bridge('__waaRecord', junk);
+      h.context.bridge('__waaRecord', junk);
     }
     // Only the { kind:'fill', value:1 } payload is a valid kind (value dropped).
     expect(handle.getActions().filter((a) => a.type !== 'navigate')).toHaveLength(1);
@@ -273,7 +301,7 @@ describe('bridge payload handling', () => {
   it('re-redacts a password fill even if the page script failed to (backstop)', async () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaRecord', {
+    h.context.bridge('__waaRecord', {
       kind: 'fill',
       candidates: [{ strategy: 'id', value: 'pw' }],
       inputType: 'password',
@@ -288,8 +316,8 @@ describe('bridge payload handling', () => {
   it('emits auth-suspected (password-field) once per url with the current last step', async () => {
     const h = makeHarness();
     await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaAuthSuspect', { reason: 'password-field', url: 'https://app.example/start' });
-    h.page.bridge('__waaAuthSuspect', { reason: 'password-field', url: 'https://app.example/start' });
+    h.context.bridge('__waaAuthSuspect', { reason: 'password-field', url: 'https://app.example/start' });
+    h.context.bridge('__waaAuthSuspect', { reason: 'password-field', url: 'https://app.example/start' });
     const suspected = ofType(h.events, 'auth-suspected');
     expect(suspected).toEqual([
       {
@@ -335,7 +363,7 @@ describe('auth segments', () => {
   it('discards actions during the segment and saves storage state at the end', async () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaRecord', { kind: 'click', candidates: [] });
+    h.context.bridge('__waaRecord', { kind: 'click', candidates: [] });
 
     const started = await handle.startAuthSegment('user-marked');
     expect(started.checkpoint).toMatchObject({
@@ -348,7 +376,7 @@ describe('auth segments', () => {
     expect(ofType(h.events, 'auth-segment')[0]).toMatchObject({ state: 'started' });
 
     // Credentials typed during the segment never become actions or events.
-    h.page.bridge('__waaRecord', { kind: 'fill', candidates: [], value: 'hunter2' });
+    h.context.bridge('__waaRecord', { kind: 'fill', candidates: [], value: 'hunter2' });
     h.page.navigate('https://accounts.google.com/signin');
     h.page.navigate('https://app.example/dashboard');
     expect(handle.getActions()).toHaveLength(2);
@@ -383,8 +411,8 @@ describe('auth segments', () => {
   it('supports retroactive segment starts that discard the action tail', async () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaRecord', { kind: 'click', candidates: [] }); // step 2
-    h.page.bridge('__waaRecord', { kind: 'fill', candidates: [], value: 'user@example.com' }); // step 3
+    h.context.bridge('__waaRecord', { kind: 'click', candidates: [] }); // step 2
+    h.context.bridge('__waaRecord', { kind: 'fill', candidates: [], value: 'user@example.com' }); // step 3
 
     const started = await handle.startAuthSegment('auto-detected', 1);
     expect(started.discardedActions).toBe(2);
@@ -407,7 +435,7 @@ describe('stop / dispose / close', () => {
   it('stop() writes a schema-valid recording.json, closes the browser, and is idempotent', async () => {
     const h = makeHarness();
     const handle = await createRecorder(h.options, { launch: h.launch });
-    h.page.bridge('__waaRecord', { kind: 'click', candidates: [{ strategy: 'id', value: 'go' }] });
+    h.context.bridge('__waaRecord', { kind: 'click', candidates: [{ strategy: 'id', value: 'go' }] });
 
     const recording = await handle.stop();
     expect(recording.formatVersion).toBe(2);
@@ -630,4 +658,69 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('browser smoke', () 
     expect(recording.actions[0]).toMatchObject({ type: 'navigate', step: 1 });
     expect(existsSync(path.join(sessionDir, 'recording.json'))).toBe(true);
   }, 20_000);
+});
+
+// ---------------------------------------------------------------------------
+// Hardening: launch-degradation warnings + popup recording
+// ---------------------------------------------------------------------------
+
+describe('hardening: launch warnings + popup recording', () => {
+  it('emits warning events from launch degradations BEFORE any action', async () => {
+    const h = makeHarness();
+    const handle = await createRecorder(h.options, {
+      launch: async () => ({
+        context: h.context,
+        page: h.page,
+        warnings: [
+          {
+            reason: 'profile-unavailable' as const,
+            message: 'Profile locked — recording with a clean browser',
+          },
+        ],
+      }),
+    });
+    const warnings = ofType(h.events, 'warning');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.reason).toBe('profile-unavailable');
+    // The trust-critical warning must precede the first recorded action.
+    const warningIdx = h.events.findIndex((e) => e.type === 'warning');
+    const firstActionIdx = h.events.findIndex((e) => e.type === 'action');
+    expect(warningIdx).toBeGreaterThanOrEqual(0);
+    if (firstActionIdx >= 0) expect(warningIdx).toBeLessThan(firstActionIdx);
+    await handle.dispose();
+  });
+
+  it('records navigations from popups and fires auth-suspected on popup auth domains', async () => {
+    const h = makeHarness();
+    const handle = await createRecorder(h.options, { launch: h.launch });
+    const before = handle.getActions().length;
+
+    const popup = h.context.openPopup();
+    popup.navigate('https://app.example/popup-page');
+    expect(handle.getActions().length).toBe(before + 1);
+    expect(handle.getActions().at(-1)?.type).toBe('navigate');
+    expect(handle.getActions().at(-1)?.url).toBe('https://app.example/popup-page');
+
+    // SSO popup landing on an IdP must trip the auto-detect assist like the main page.
+    popup.navigate('https://accounts.google.com/signin');
+    const suspected = ofType(h.events, 'auth-suspected');
+    expect(
+      suspected.some(
+        (e) => e.reason === 'auth-domain-navigation' && e.url.includes('accounts.google.com'),
+      ),
+    ).toBe(true);
+    await handle.dispose();
+  });
+
+  it('keeps the session alive when a popup closes; only stop ends it', async () => {
+    const h = makeHarness();
+    const handle = await createRecorder(h.options, { launch: h.launch });
+    const popup = h.context.openPopup();
+    await popup.close();
+    expect(ofType(h.events, 'closed')).toHaveLength(0);
+
+    const recording = await handle.stop();
+    expect(recording.sessionId).toBe('session_unit');
+    expect(ofType(h.events, 'closed').map((e) => e.reason)).toEqual(['stopped']);
+  });
 });

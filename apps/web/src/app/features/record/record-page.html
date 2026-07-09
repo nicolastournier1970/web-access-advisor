@@ -36,6 +36,29 @@
   </span>
 </waa-card>
 
+<!-- Trust-critical degradation notice: recording WITHOUT saved logins -->
+@if (store.recordingWarning(); as warning) {
+  <div
+    role="alert"
+    data-testid="recording-warning"
+    class="mt-4 flex items-start gap-3 rounded-lg border border-warning-accent bg-warning-bg px-4 py-3 text-sm text-ink"
+  >
+    <span aria-hidden="true" class="mt-0.5">⚠️</span>
+    <div class="flex-1">
+      <p class="font-semibold">Recording without your saved logins</p>
+      <p class="mt-0.5">{{ warning.message }} If this page needs you to be signed in, sign in now — use the "I'm logging in" toggle so your credentials are not recorded.</p>
+    </div>
+    <button
+      type="button"
+      class="shrink-0 rounded p-1 text-ink hover:bg-warning-accent/20 focus-visible:ring-2"
+      (click)="store.dismissRecordingWarning()"
+      aria-label="Dismiss warning"
+    >
+      ✕
+    </button>
+  </div>
+}
+
 <!-- Login segment banner -->
 <div class="mt-4">
   <waa-auth-banner [active]="store.authSegmentActive()" />

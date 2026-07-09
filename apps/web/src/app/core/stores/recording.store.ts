@@ -67,6 +67,15 @@ export class RecordingStore {
   private readonly authSuspectedState = signal<AuthSuspectedPrompt | null>(null);
   private readonly sessionStatusState = signal<SessionStatus | null>(null);
   private readonly interruptedState = signal(false);
+  /**
+   * Trust-critical degradation notice (recording.warning): the recording is
+   * running WITHOUT the user's saved logins. Persistent for the whole
+   * recording (dismissible in the UI, but the state survives so the record
+   * page can keep showing it) — v1 failed silently here.
+   */
+  private readonly recordingWarningState = signal<{ message: string; reason: string } | null>(
+    null,
+  );
 
   readonly phase = this.phaseState.asReadonly();
   readonly sessionId = this.sessionIdState.asReadonly();
@@ -76,6 +85,7 @@ export class RecordingStore {
   readonly authSuspected = this.authSuspectedState.asReadonly();
   readonly sessionStatus = this.sessionStatusState.asReadonly();
   readonly interrupted = this.interruptedState.asReadonly();
+  readonly recordingWarning = this.recordingWarningState.asReadonly();
   readonly connectionState = this.sse.connectionState;
 
   /** URLs whose auth-suspected prompt the user declined — never re-prompt. */
@@ -188,6 +198,12 @@ export class RecordingStore {
     this.authSuspectedState.set(null);
     this.sessionStatusState.set(null);
     this.interruptedState.set(false);
+    this.recordingWarningState.set(null);
+  }
+
+  /** Record page dismissed the persistent warning notice. */
+  dismissRecordingWarning(): void {
+    this.recordingWarningState.set(null);
   }
 
   private onEvent(event: SseEvent): void {
@@ -207,6 +223,15 @@ export class RecordingStore {
         );
         break;
       }
+
+      case 'recording.warning':
+        this.recordingWarningState.set({ message: event.message, reason: event.reason });
+        // Assertive: the user is about to record believing they are signed in.
+        this.announcer.announce(
+          `Warning: ${event.message}. Recording continues without your saved logins.`,
+          'assertive',
+        );
+        break;
 
       case 'recording.auth_suspected':
         if (!this.authSegmentActiveState() && !this.dismissedAuthUrls.has(event.url)) {

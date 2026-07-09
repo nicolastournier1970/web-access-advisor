@@ -20,7 +20,7 @@ Sources of truth (this document describes them; on any conflict the code wins):
 
 ## Catalog
 
-Thirteen event types, one zod discriminated union (`sseEventSchema`). Fields listed are in addition to `type`.
+Fourteen event types, one zod discriminated union (`sseEventSchema`). Fields listed are in addition to `type`.
 
 | `type` | Payload fields | Emitted when |
 |---|---|---|
@@ -28,6 +28,7 @@ Thirteen event types, one zod discriminated union (`sseEventSchema`). Fields lis
 | [`recording.navigated`](#recordingnavigated) | `url`, `step?` | The recorded page navigates (main frame) |
 | [`recording.auth_suspected`](#recordingauth_suspected) | `reason`, `url`, `suspectedAtStep` | The recorder suspects an unmarked login |
 | [`recording.auth_segment`](#recordingauth_segment) | `state`, `checkpointId` | A login segment opens or closes |
+| [`recording.warning`](#recordingwarning) | `message`, `reason` | Recording proceeds WITHOUT saved logins (degraded launch) |
 | [`analysis.progress`](#analysisprogress) | `phase`, `message`, `currentStep?`, `totalSteps?`, `snapshotCount?`, `batchCurrent?`, `batchTotal?` | Progress within a running analysis |
 | [`analysis.complete`](#analysiscomplete) | `analysisId`, `snapshotCount`, `warnings` | Analysis finished successfully |
 | [`analysis.error`](#analysiserror) | `message` | Analysis failed |
@@ -82,6 +83,17 @@ UI: opens an accessible dialog (CDK focus trap) offering to start a login segmen
 Emitted when a login segment opens (`POST .../recording/auth/start`, whether user-marked or a confirmed auto-detect) and when it closes (`POST .../recording/auth/end`). At `ended`, `storageState.json` has been saved and the checkpoint carries `postLoginUrl`/`completedAt`.
 
 UI: while the segment is open, shows a prominent "login in progress — actions are not being recorded" indicator (the mark-login toggle's active state); on `ended`, renders a checkpoint marker in the action feed where the discarded login happened.
+
+### `recording.warning`
+
+| Field | Type | Notes |
+|---|---|---|
+| `message` | string | Human-readable degradation description (aligned with the analyzer's launch warnings). |
+| `reason` | `"profile-unavailable" \| "storage-state-unavailable"` | Profile locked/missing, or the saved login could not be read/decrypted. |
+
+Emitted at recording start, BEFORE any action event, when a launch degradation occurred: the requested browser profile could not be used, or the `reuseStorageStateFrom` state was unreadable. The recording proceeds with a clean browser — trust-critical, because the user believes they are signed in (silent fallback was the v1 failure class this event kills).
+
+UI: persistent dismissible `role="alert"` notice on the record page + assertive screen-reader announcement, advising to sign in via the login-segment toggle so credentials are not recorded.
 
 ### `analysis.progress`
 

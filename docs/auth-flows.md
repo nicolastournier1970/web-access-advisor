@@ -13,6 +13,9 @@ Sources of truth (this document describes them; on any conflict the code wins):
 
 ## 1. Recording: auth segments
 
+> **Degraded launches are loud.** If the requested browser profile cannot be used (locked/missing) or a reused saved login cannot be read, the recording still starts — with a clean browser — and a `recording.warning` SSE event fires before any action. The UI shows a persistent notice and announces assertively, so nobody records a "signed-in" session that isn't (the silent v1 failure class). Popups/new tabs opened during recording (SSO windows, `target="_blank"`) are instrumented via context-level wiring and their interactions are recorded like the main page.
+
+
 A login segment is a window during which **nothing is recorded**. Actions performed while it is open are discarded outright (not redacted — absent); only an [`AuthCheckpoint`](./recording-format.md#authcheckpoint) marker persists, and `storageState.json` is saved the moment the segment ends. Two ways in:
 
 ### User-marked

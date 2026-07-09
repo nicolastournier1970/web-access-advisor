@@ -293,6 +293,34 @@ describe('engine-backed modules (fake engine, tmp snapshots dir)', () => {
     expect(summary.status).toBe('recorded');
   });
 
+  it('maps engine launch warnings to recording.warning on the stream', async () => {
+    const started = startRecordingResponseSchema.parse(
+      (
+        await request(http)
+          .post('/api/sessions')
+          .send({ url: 'https://app.example.test/', browserType: 'chromium', useProfile: true })
+          .expect(201)
+      ).body,
+    );
+    const collected = firstValueFrom(
+      events.stream(started.sessionId).pipe(
+        filter((m) => (m.data as { type?: string }).type === 'recording.warning'),
+        take(1),
+      ),
+    );
+    fake.recorderEvents.onEvent!({
+      type: 'warning',
+      message: 'Profile locked — recording with a clean browser',
+      reason: 'profile-unavailable',
+    });
+    const message = await collected;
+    expect(message.data).toMatchObject({
+      type: 'recording.warning',
+      reason: 'profile-unavailable',
+    });
+    await request(http).post(`/api/sessions/${started.sessionId}/recording/stop`).expect(200);
+  });
+
   it('409s recording controls when no live recording exists', async () => {
     await request(http).post(`/api/sessions/${sessionId}/recording/stop`).expect(409);
     await request(http)

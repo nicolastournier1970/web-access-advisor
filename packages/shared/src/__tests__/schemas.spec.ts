@@ -211,6 +211,19 @@ describe('sseEventSchema', () => {
     expect(event.type).toBe('replay.auth_required');
   });
 
+  it('accepts recording.warning (trust-critical degradation notice)', () => {
+    const event = sseEventSchema.parse({
+      type: 'recording.warning',
+      message: 'Profile locked — recording with a clean browser',
+      reason: 'profile-unavailable',
+    });
+    expect(event.type).toBe('recording.warning');
+    expect(
+      sseEventSchema.safeParse({ type: 'recording.warning', message: 'x', reason: 'bogus' })
+        .success,
+    ).toBe(false);
+  });
+
   it('rejects unknown event types', () => {
     expect(sseEventSchema.safeParse({ type: 'bogus.event' }).success).toBe(false);
   });
