@@ -3,6 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  fixedKeyProvider,
+  setDefaultKeyProviderForTests,
+  writeStorageStateFile,
+  type StorageStateData,
+} from './secure-storage-state.js';
+import {
   getStorageStateStatus,
   validateStorageState,
   type ProbeBrowser,
@@ -12,9 +18,12 @@ let tmp: string;
 
 beforeAll(async () => {
   tmp = await mkdtemp(path.join(os.tmpdir(), 'waa-storage-state-'));
+  // Fixed in-memory key: no DPAPI/PowerShell, no ~/.waa writes in unit tests.
+  setDefaultKeyProviderForTests(fixedKeyProvider(Buffer.alloc(32, 42)));
 });
 
 afterAll(async () => {
+  setDefaultKeyProviderForTests(null);
   await rm(tmp, { recursive: true, force: true });
 });
 
@@ -97,13 +106,40 @@ describe('getStorageStateStatus', () => {
     const status = await getStorageStateStatus(file);
     expect(JSON.stringify(status)).not.toContain('secret-value-never-surfaced');
   });
+
+  it('reads expiry metadata through an ENCRYPTED storageState file', async () => {
+    const future = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
+    const file = path.join(tmp, 'encrypted-status.json');
+    await writeStorageStateFile(file, { cookies: [cookie(future)], origins: [] });
+    const status = await getStorageStateStatus(file);
+    expect(status.present).toBe(true);
+    expect(status.expired).toBe(false);
+    expect(status.earliestExpiry).toBe(new Date(future * 1000).toISOString());
+    expect(JSON.stringify(status)).not.toContain('secret-value-never-surfaced');
+  });
+
+  it('reports an undecryptable envelope (wrong key) as not usable, mentioning the machine/user binding', async () => {
+    const file = path.join(tmp, 'foreign-key-status.json');
+    await writeStorageStateFile(file, { cookies: [cookie(-1)], origins: [] }, {
+      keyProvider: fixedKeyProvider(Buffer.alloc(32, 99)), // not the default test key
+    });
+    const status = await getStorageStateStatus(file);
+    expect(status.present).toBe(false);
+    expect(status.message).toMatch(/machine and user bound/);
+    expect(JSON.stringify(status)).not.toContain('secret-value-never-surfaced');
+  });
 });
 
-/** Fake browser satisfying ProbeBrowser; records lifecycle for assertions. */
-function fakeBrowser(landedUrl: string, log: string[]): ProbeBrowser {
+/** Fake browser satisfying ProbeBrowser; records lifecycle + seeded state. */
+function fakeBrowser(
+  landedUrl: string,
+  log: string[],
+  seededStates: StorageStateData[] = [],
+): ProbeBrowser {
   return {
-    async newContext() {
+    async newContext(options: { storageState: StorageStateData }) {
       log.push('newContext');
+      seededStates.push(options.storageState);
       return {
         async newPage() {
           return {
@@ -159,19 +195,53 @@ describe('validateStorageState', () => {
     expect(log).toContain('browser.close');
   });
 
-  it('succeeds when navigation and selector wait pass', async () => {
+  it('succeeds when navigation and selector wait pass, seeding the context with the state OBJECT', async () => {
     const file = await writeState('probe-ok.json', [cookie(-1)]);
     const log: string[] = [];
+    const seeded: StorageStateData[] = [];
     const result = await validateStorageState({
       storageStatePath: file,
       probeUrl: 'https://example.com/dashboard',
       successSelector: '[data-testid="avatar"]',
       isAuthUrl: (url) => url.includes('login'),
-      launchBrowser: async () => fakeBrowser('https://example.com/dashboard', log),
+      launchBrowser: async () => fakeBrowser('https://example.com/dashboard', log, seeded),
     });
     expect(result.ok).toBe(true);
     expect(result.reason).toBeUndefined();
     expect(log).toEqual(['newContext', 'goto', 'waitForSelector', 'browser.close']);
+    // Legacy plaintext file passed through as the parsed object (not a path).
+    expect(seeded).toHaveLength(1);
+    expect(seeded[0]!.cookies.map((c) => c.name)).toEqual(['sid']);
+  });
+
+  it('decrypts an ENCRYPTED file and seeds the context with the decrypted object', async () => {
+    const file = path.join(tmp, 'probe-encrypted.json');
+    await writeStorageStateFile(file, { cookies: [cookie(-1)], origins: [] });
+    const log: string[] = [];
+    const seeded: StorageStateData[] = [];
+    const result = await validateStorageState({
+      storageStatePath: file,
+      probeUrl: 'https://example.com/dashboard',
+      launchBrowser: async () => fakeBrowser('https://example.com/dashboard', log, seeded),
+    });
+    expect(result.ok).toBe(true);
+    expect(seeded[0]!.cookies.map((c) => c.name)).toEqual(['sid']);
+  });
+
+  it('fails without launching when the file cannot be decrypted (foreign machine/user)', async () => {
+    const file = path.join(tmp, 'probe-foreign.json');
+    await writeStorageStateFile(file, { cookies: [cookie(-1)], origins: [] }, {
+      keyProvider: fixedKeyProvider(Buffer.alloc(32, 99)),
+    });
+    const result = await validateStorageState({
+      storageStatePath: file,
+      probeUrl: 'https://example.com/dashboard',
+      launchBrowser: () => {
+        throw new Error('browser must not launch for an undecryptable file');
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/machine and user account/);
   });
 
   it('reports probe errors as ok:false and closes the browser', async () => {

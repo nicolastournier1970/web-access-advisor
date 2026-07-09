@@ -5,8 +5,17 @@
  * validateStorageState). Hard rule: cookie/localStorage VALUES are
  * credentials-equivalent and are never logged, returned, or embedded in
  * error messages — only expiry metadata leaves this module.
+ *
+ * Files are read through {@link readStorageStateFile}, which transparently
+ * decrypts encrypted-at-rest files and passes legacy plaintext ones through
+ * (see storage/secure-storage-state.ts).
  */
-import { readFile } from 'node:fs/promises';
+import {
+  readStorageStateFile,
+  StorageStateDecryptError,
+  StorageStateKeyError,
+  type StorageStateData,
+} from './secure-storage-state.js';
 
 /** Shallow file/expiry check result (metadata only, never cookie values). */
 export interface StorageStateStatus {
@@ -29,8 +38,17 @@ export interface StorageStateStatus {
 export async function getStorageStateStatus(storageStatePath: string): Promise<StorageStateStatus> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(await readFile(storageStatePath, 'utf8'));
-  } catch {
+    parsed = await readStorageStateFile(storageStatePath);
+  } catch (error) {
+    if (error instanceof StorageStateDecryptError || error instanceof StorageStateKeyError) {
+      return {
+        present: false,
+        expired: null,
+        earliestExpiry: null,
+        message:
+          'Storage state present but cannot be decrypted on this machine/user (the encryption key is machine and user bound)',
+      };
+    }
     return {
       present: false,
       expired: null,
@@ -74,7 +92,7 @@ export async function getStorageStateStatus(storageStatePath: string): Promise<S
  * `chromium.launch()` result satisfies it.
  */
 export interface ProbeBrowser {
-  newContext(options: { storageState: string }): Promise<{
+  newContext(options: { storageState: StorageStateData }): Promise<{
     newPage(): Promise<{
       goto(url: string, options?: { waitUntil?: 'domcontentloaded'; timeout?: number }): Promise<unknown>;
       waitForSelector(selector: string, options?: { timeout?: number }): Promise<unknown>;
@@ -87,7 +105,7 @@ export interface ProbeBrowser {
 
 /** Options for {@link validateStorageState}. */
 export interface ValidateStorageStateOptions {
-  /** Path to storageState.json; checked for existence before any launch. */
+  /** Path to storageState.json (encrypted or legacy plaintext); read before any launch. */
   storageStatePath: string;
   /** URL to navigate to with the stored login applied. */
   probeUrl: string;
@@ -117,11 +135,13 @@ export interface ValidateStorageStateResult {
 
 /**
  * Behavioural probe of a saved login: launch chromium, create a context from
- * the storageState file, navigate to `probeUrl` (domcontentloaded, bounded
- * timeout), optionally wait for `successSelector`, and — when `isAuthUrl` is
- * supplied — fail with 'landed-on-auth-page' if the landed URL matches an
- * auth page. A missing/unreadable storageState file fails fast without any
- * browser launch. The browser is always closed, including on errors.
+ * the (decrypted) storageState object, navigate to `probeUrl`
+ * (domcontentloaded, bounded timeout), optionally wait for `successSelector`,
+ * and — when `isAuthUrl` is supplied — fail with 'landed-on-auth-page' if the
+ * landed URL matches an auth page. A missing/unreadable storageState file
+ * fails fast without any browser launch; an undecryptable one fails with the
+ * decrypt error's message (the file is machine+user bound). The browser is
+ * always closed, including on errors.
  */
 export async function validateStorageState(
   opts: ValidateStorageStateOptions,
@@ -129,10 +149,14 @@ export async function validateStorageState(
   const start = Date.now();
   const timeoutMs = opts.timeoutMs ?? 10_000;
 
-  // Fast pre-flight: no browser when the file is missing or unreadable.
+  // Fast pre-flight read (and decrypt): no browser when the file is unusable.
+  let storageState: StorageStateData;
   try {
-    JSON.parse(await readFile(opts.storageStatePath, 'utf8'));
-  } catch {
+    storageState = await readStorageStateFile(opts.storageStatePath);
+  } catch (error) {
+    if (error instanceof StorageStateDecryptError || error instanceof StorageStateKeyError) {
+      return { ok: false, elapsedMs: Date.now() - start, reason: error.message };
+    }
     return { ok: false, elapsedMs: Date.now() - start, reason: 'storage-state-missing' };
   }
 
@@ -148,7 +172,7 @@ export async function validateStorageState(
   let browser: ProbeBrowser | undefined;
   try {
     browser = await launch({ headless: opts.headless ?? true });
-    const context = await browser.newContext({ storageState: opts.storageStatePath });
+    const context = await browser.newContext({ storageState });
     const page = await context.newPage();
 
     await page.goto(opts.probeUrl, {

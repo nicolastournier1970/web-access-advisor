@@ -29,6 +29,7 @@ import type {
 import { isAuthUrl } from '../auth/login-detection.js';
 import { detectBrowsers } from '../browsers/detect.js';
 import { saveRecording } from '../storage/recording-format.js';
+import { readStorageStateFile, writeStorageStateFile } from '../storage/secure-storage-state.js';
 import { sessionPaths } from '../storage/session-files.js';
 import { buildRecorderScript } from './injected/recorder-script.js';
 import { RecorderState } from './recorder-state.js';
@@ -59,7 +60,8 @@ export interface RecorderPageLike {
 }
 
 export interface RecorderContextLike {
-  storageState(options?: { path?: string }): Promise<unknown>;
+  /** Returns the live storage state OBJECT; the recorder encrypts it to disk itself. */
+  storageState(): Promise<unknown>;
   close(): Promise<unknown>;
   on(event: 'close', handler: () => void): unknown;
 }
@@ -165,9 +167,12 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
   const viewportOption = headless ? {} : { viewport: null };
 
   if (options.reuseStorageStatePath !== undefined) {
+    // Decrypt (or legacy-plaintext read) and seed the context with the OBJECT
+    // form; read failures propagate — this is validated reuse.
+    const storageState = await readStorageStateFile(options.reuseStorageStatePath);
     const browser = await engine.launch({ headless, args });
     const context = await browser.newContext({
-      storageState: options.reuseStorageStatePath,
+      storageState,
       ...viewportOption,
     });
     return { browser, context, page: await context.newPage() };
@@ -313,7 +318,10 @@ export async function createRecorder(
 
   const saveStorageState = async (): Promise<boolean> => {
     try {
-      await context.storageState({ path: paths.storageState });
+      // Capture the state object and encrypt it to disk ourselves — the
+      // plaintext `context.storageState({ path })` write is never used.
+      const state = await context.storageState();
+      await writeStorageStateFile(paths.storageState, state as object);
       return true;
     } catch {
       return false;

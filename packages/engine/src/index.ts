@@ -17,6 +17,15 @@ export {
   getStorageStateStatus,
   validateStorageState,
 } from './storage/storage-state.js';
+export {
+  isEncryptedStorageState,
+  readStorageStateFile,
+  writeStorageStateFile,
+  StorageStateDecryptError,
+  StorageStateKeyError,
+  type StorageStateData,
+  type StorageStateKeyProvider,
+} from './storage/secure-storage-state.js';
 
 // auth
 export { loadAuthDomainsConfig, DEFAULT_AUTH_DOMAINS_CONFIG } from './auth/domain-config.js';

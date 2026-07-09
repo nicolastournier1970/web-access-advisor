@@ -75,7 +75,7 @@ export interface RecorderOptions {
   headless?: boolean;
   /** Absolute session directory (…/snapshots/<sessionId>). Created if missing. */
   sessionDir: string;
-  /** Path to a storageState.json to seed a clean context with (validated reuse). */
+  /** Path to a storageState.json (encrypted or legacy plaintext) to seed a clean context with (validated reuse). */
   reuseStorageStatePath?: string;
   authConfig: AuthDomainsConfig;
   onEvent: (event: RecorderEvent) => void;

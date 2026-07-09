@@ -4,7 +4,8 @@
  *
  *   snapshots/<sessionId>/
  *     recording.json        — versioned recording (see recording-format.ts)
- *     storageState.json     — Playwright storage state (cookies/localStorage)
+ *     storageState.json     — Playwright storage state (cookies/localStorage),
+ *                             encrypted at rest (see secure-storage-state.ts)
  *     manifest.json         — replay manifest
  *     analysis.json         — axe + LLM analysis result
  *     session.json          — session metadata
@@ -40,7 +41,7 @@ export interface SessionPaths {
   root: string;
   /** recording.json (v1 or v2 on disk; always loaded as v2 in memory). */
   recording: string;
-  /** storageState.json — contains credentials-equivalent cookies; never log its contents. */
+  /** storageState.json — credentials-equivalent cookies, AES-256-GCM encrypted at rest (legacy files may be plaintext); never log its contents. */
   storageState: string;
   /** manifest.json written after replay. */
   manifest: string;

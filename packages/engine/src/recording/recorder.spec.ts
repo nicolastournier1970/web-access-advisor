@@ -1,11 +1,17 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { REDACTED_VALUE, recordingV2Schema } from '@waa/shared';
 import type { RecorderEvent, RecorderOptions } from '../engine-types.js';
 import { DEFAULT_AUTH_DOMAINS_CONFIG } from '../auth/domain-config.js';
+import {
+  fixedKeyProvider,
+  readStorageStateFile,
+  setDefaultKeyProviderForTests,
+  writeStorageStateFile,
+} from '../storage/secure-storage-state.js';
 import { buildRecorderScript } from './injected/recorder-script.js';
 import {
   createRecorder,
@@ -13,6 +19,14 @@ import {
   type RecorderFrameLike,
   type RecorderLaunchResult,
 } from './recorder.js';
+
+// Encrypt with a fixed in-memory key: no DPAPI/PowerShell, no ~/.waa writes.
+beforeAll(() => {
+  setDefaultKeyProviderForTests(fixedKeyProvider(Buffer.alloc(32, 42)));
+});
+afterAll(() => {
+  setDefaultKeyProviderForTests(null);
+});
 
 // ---------------------------------------------------------------------------
 // Fakes (no browser)
@@ -76,16 +90,33 @@ class FakePage {
   }
 }
 
+/** Cookie value the fake context reports — must NEVER appear raw on disk. */
+export const FAKE_COOKIE_VALUE = 'fake-cookie-value-do-not-persist';
+
 class FakeContext implements RecorderContextLike {
-  readonly storageStatePaths: string[] = [];
+  storageStateCalls = 0;
   storageStateError: Error | null = null;
   closed = false;
   private readonly closeHandlers: Array<() => void> = [];
 
-  async storageState(options?: { path?: string }): Promise<unknown> {
+  async storageState(): Promise<unknown> {
     if (this.storageStateError) throw this.storageStateError;
-    if (options?.path !== undefined) this.storageStatePaths.push(options.path);
-    return { cookies: [], origins: [] };
+    this.storageStateCalls += 1;
+    return {
+      cookies: [
+        {
+          name: 'fake_session',
+          value: FAKE_COOKIE_VALUE,
+          domain: 'app.example',
+          path: '/',
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        },
+      ],
+      origins: [],
+    };
   }
   async close(): Promise<void> {
     if (this.closed) return;
@@ -329,7 +360,18 @@ describe('auth segments', () => {
     expect(ended.storageStateSaved).toBe(true);
     expect(ended.checkpoint.storageStateSaved).toBe(true);
     expect(ended.postLoginUrl).toBe('https://app.example/dashboard');
-    expect(h.context.storageStatePaths).toEqual([path.join(h.sessionDir, 'storageState.json')]);
+    // Saved ENCRYPTED at the session path: envelope on disk, no raw cookie data,
+    // and the decrypted roundtrip yields the captured state.
+    const storageStatePath = path.join(h.sessionDir, 'storageState.json');
+    expect(h.context.storageStateCalls).toBe(1);
+    const rawState = await readFile(storageStatePath, 'utf8');
+    expect(rawState).toContain('waaEncrypted');
+    expect(rawState).not.toContain('fake_session');
+    expect(rawState).not.toContain(FAKE_COOKIE_VALUE);
+    const decrypted = (await readStorageStateFile(storageStatePath)) as {
+      cookies: Array<{ name: string }>;
+    };
+    expect(decrypted.cookies.map((c) => c.name)).toEqual(['fake_session']);
     const segmentEvents = ofType(h.events, 'auth-segment');
     expect(segmentEvents[1]).toMatchObject({
       state: 'ended',
@@ -381,8 +423,10 @@ describe('stop / dispose / close', () => {
     expect(h.page.closed).toBe(true);
     expect(h.context.closed).toBe(true);
     expect(h.browser.closed).toBe(true);
-    // storage state saved best-effort at stop
-    expect(h.context.storageStatePaths).toContain(path.join(h.sessionDir, 'storageState.json'));
+    // storage state saved best-effort at stop — encrypted envelope on disk
+    const stopStatePath = path.join(h.sessionDir, 'storageState.json');
+    expect(existsSync(stopStatePath)).toBe(true);
+    expect(await readFile(stopStatePath, 'utf8')).toContain('waaEncrypted');
     // exactly one closed event, reason 'stopped' (no browser-closed from our own close)
     expect(ofType(h.events, 'closed')).toEqual([{ type: 'closed', reason: 'stopped' }]);
 
@@ -520,6 +564,10 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('browser smoke', () 
     const ended = await handle.endAuthSegment();
     expect(ended.storageStateSaved).toBe(true);
     expect(existsSync(path.join(sessionDir, 'storageState.json'))).toBe(true);
+    // Encrypted at rest even for the real-browser save path.
+    expect(await readFile(path.join(sessionDir, 'storageState.json'), 'utf8')).toContain(
+      'waaEncrypted',
+    );
     expect(handle.getActions()).toHaveLength(stepsBefore);
 
     // Recording resumes with a monotonic step after the checkpoint.
@@ -542,8 +590,25 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('browser smoke', () 
 
   it('default launcher honours reuseStorageStatePath with the requested browser type', async () => {
     const sessionDir = path.join(tempRoot, 'session_reuse');
+    // Seed is an ENCRYPTED file: the default launcher must decrypt it and seed
+    // the context with the object form (playwright validates the shape).
     const seedPath = path.join(tempRoot, 'seed-storageState.json');
-    await writeFile(seedPath, JSON.stringify({ cookies: [], origins: [] }), 'utf8');
+    await writeStorageStateFile(seedPath, {
+      cookies: [
+        {
+          name: 'seed_cookie',
+          value: 'seed-value',
+          domain: 'app.example',
+          path: '/',
+          expires: -1,
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax',
+        },
+      ],
+      origins: [],
+    });
+    expect(await readFile(seedPath, 'utf8')).toContain('waaEncrypted');
     const events: RecorderEvent[] = [];
 
     const handle = await createRecorder({

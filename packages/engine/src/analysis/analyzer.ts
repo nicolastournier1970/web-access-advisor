@@ -43,6 +43,11 @@ import {
 } from '../replay/replayer.js';
 import { DomChangeDetector, decideSnapshot, type DomChangeDetails } from '../snapshot/dom-change-detector.js';
 import { capturePageState, captureSnapshot, type SnapshotPage } from '../snapshot/snapshotter.js';
+import {
+  readStorageStateFile,
+  writeStorageStateFile,
+  type StorageStateData,
+} from '../storage/secure-storage-state.js';
 import { sessionPaths, type SessionPaths } from '../storage/session-files.js';
 import { getStorageStateStatus, validateStorageState } from '../storage/storage-state.js';
 import { createBatches, groupSnapshotsForAnalysis, runLlmAnalysis } from './batching.js';
@@ -68,7 +73,8 @@ const CHROMIUM_ARGS = ['--no-first-run', '--no-default-browser-check'];
 export type AnalyzerPage = ReplayPageActions & SnapshotPage;
 
 export interface AnalyzerContextLike {
-  storageState(options?: { path?: string }): Promise<unknown>;
+  /** Returns the live storage state OBJECT; the analyzer encrypts it to disk itself. */
+  storageState(): Promise<unknown>;
   close(): Promise<unknown>;
 }
 
@@ -168,10 +174,23 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
   const args = options.browserType === 'chromium' ? CHROMIUM_ARGS : [];
   const storageStatePath = pathsFor(options).storageState;
 
+  let storageStateWarning: string | undefined;
   if (await fileExists(storageStatePath)) {
-    const browser = await engine.launch({ headless, args });
-    const context = await browser.newContext({ storageState: storageStatePath });
-    return { browser, context, page: await context.newPage() };
+    // Decrypt (or legacy-plaintext read) and seed the context with the OBJECT
+    // form. An unreadable file (e.g. copied from another machine/user) falls
+    // through to the profile/clean paths with a warning — same behaviour as if
+    // the file were absent; pause-for-login covers the replay instead.
+    let storageState: StorageStateData | undefined;
+    try {
+      storageState = await readStorageStateFile(storageStatePath);
+    } catch (error) {
+      storageStateWarning = `Saved login could not be loaded (${describeError(error)}); continuing without it.`;
+    }
+    if (storageState !== undefined) {
+      const browser = await engine.launch({ headless, args });
+      const context = await browser.newContext({ storageState });
+      return { browser, context, page: await context.newPage() };
+    }
   }
 
   if (options.useProfile && options.browserType !== 'webkit') {
@@ -183,25 +202,38 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
           options.browserType === 'firefox' ? playwright.firefox : playwright.chromium;
         const context = await launcher.launchPersistentContext(profilePath, { headless, args });
         const page = context.pages()[0] ?? (await context.newPage());
-        return { context, page };
+        return {
+          context,
+          page,
+          ...(storageStateWarning !== undefined ? { warning: storageStateWarning } : {}),
+        };
       } catch {
         // Profile locked by a running browser, or unusable → clean fallback.
       }
     }
     const browser = await engine.launch({ headless, args });
     const context = await browser.newContext();
+    const profileWarning =
+      'Requested browser profile could not be used; continuing with a clean browser session.';
     return {
       browser,
       context,
       page: await context.newPage(),
       warning:
-        'Requested browser profile could not be used; continuing with a clean browser session.',
+        storageStateWarning !== undefined
+          ? `${storageStateWarning} ${profileWarning}`
+          : profileWarning,
     };
   }
 
   const browser = await engine.launch({ headless, args });
   const context = await browser.newContext();
-  return { browser, context, page: await context.newPage() };
+  return {
+    browser,
+    context,
+    page: await context.newPage(),
+    ...(storageStateWarning !== undefined ? { warning: storageStateWarning } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -307,7 +339,10 @@ class AnalysisRun {
 
     let storageStateSaved = false;
     try {
-      await this.live.context.storageState({ path: this.paths.storageState });
+      // Capture the state object and encrypt it to disk (never the plaintext
+      // `context.storageState({ path })` write).
+      const state = await this.live.context.storageState();
+      await writeStorageStateFile(this.paths.storageState, state as object);
       storageStateSaved = true;
     } catch (error) {
       this.warnings.push(`Failed to save storage state after login: ${describeError(error)}`);

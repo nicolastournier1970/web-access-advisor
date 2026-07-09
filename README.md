@@ -37,7 +37,7 @@ The dev server proxies `/api` to port 3002, so the UI talks to the API with no C
 2. **Analyze** — the recording is replayed step by step. Snapshots (scrubbed HTML, axe-core results, screenshot) are captured whenever the DOM changed meaningfully. If the replay lands on a login wall — a recorded auth checkpoint without valid saved login state, a configured auth domain, or the login-wall heuristic — it pauses and the UI shows a banner: sign in **in the open browser**, press Continue, and the replay resumes. Timeout defaults to 10 minutes.
 3. **Results** — AI findings (Gemini, batched with progressive context) merged with axe violations, per-step screenshots, corrected-code suggestions, CSV and print export.
 
-Formats and events are documented in [docs/recording-format.md](docs/recording-format.md) (recording.json v2, v1 compatibility, manifest layout) and [docs/sse-events.md](docs/sse-events.md) (the SSE catalog the UI consumes). A dedicated auth-flows document (state machine diagrams, storageState lifecycle, security posture) lands in Phase 8 of [docs/rewrite-plan.md](docs/rewrite-plan.md).
+Formats and events are documented in [docs/recording-format.md](docs/recording-format.md) (recording.json v2, v1 compatibility, manifest layout) and [docs/sse-events.md](docs/sse-events.md) (the SSE catalog the UI consumes). Auth flows (state machine diagrams, storageState lifecycle, security posture) are covered in [docs/auth-flows.md](docs/auth-flows.md). Saved logins (`storageState.json`) are encrypted at rest with AES-256-GCM under a per-user key (DPAPI-protected on Windows), so session directories cannot be copied to another user or machine.
 
 ## Configuration
 

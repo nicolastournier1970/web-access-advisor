@@ -7,7 +7,7 @@ Sources of truth (this document describes them; on any conflict the code wins):
 - Recording side: [`packages/engine/src/recording/recorder.ts`](../packages/engine/src/recording/recorder.ts) + [`recorder-state.ts`](../packages/engine/src/recording/recorder-state.ts); UI mapping in [`apps/web/src/app/core/stores/recording.store.ts`](../apps/web/src/app/core/stores/recording.store.ts)
 - Replay side: [`packages/engine/src/replay/auth-checkpoint.ts`](../packages/engine/src/replay/auth-checkpoint.ts) (the machine) driven by [`packages/engine/src/analysis/analyzer.ts`](../packages/engine/src/analysis/analyzer.ts)
 - Heuristics: [`packages/engine/src/auth/login-detection.ts`](../packages/engine/src/auth/login-detection.ts) + [`domain-config.ts`](../packages/engine/src/auth/domain-config.ts) (`config/auth-domains.json`)
-- Saved logins: [`packages/engine/src/storage/storage-state.ts`](../packages/engine/src/storage/storage-state.ts)
+- Saved logins: [`packages/engine/src/storage/storage-state.ts`](../packages/engine/src/storage/storage-state.ts); at-rest encryption: [`secure-storage-state.ts`](../packages/engine/src/storage/secure-storage-state.ts)
 - The end-to-end gate: [`packages/engine/src/analysis/auth-v2-e2e.spec.ts`](../packages/engine/src/analysis/auth-v2-e2e.spec.ts)
 - Decision record: [ADR 0005](./adr/0005-recording-format-v2-auth-checkpoints.md); file format: [recording-format.md](./recording-format.md); events: [sse-events.md](./sse-events.md)
 
@@ -44,7 +44,7 @@ Engine semantics of a retroactive start (`RecorderState.startSegment`): `afterSt
 `POST .../auth/end` (or stopping the recording with the segment still open, which ends it implicitly):
 
 1. The checkpoint gets `completedAt` and `postLoginUrl` (the live page URL, else the last navigation seen during the segment — segment navigations update this URL even though they are discarded).
-2. `context.storageState({ path })` writes `snapshots/<id>/storageState.json` immediately.
+2. The live `context.storageState()` object is captured and written **encrypted** to `snapshots/<id>/storageState.json` immediately (AES-256-GCM envelope — see [§ storageState encryption](#storagestate-encryption-at-rest); the plaintext `storageState({ path })` write is never used).
 3. `storageStateSaved` is flipped to `true` **only after the write actually succeeded**.
 4. `recording.auth_segment { state: "ended" }` fires; the UI renders a checkpoint marker in the action feed.
 
@@ -117,16 +117,26 @@ When a validated saved login covers the session, recorded *bounce* navigations i
 
 ## 3. storageState lifecycle
 
-`storageState.json` (Playwright cookies + localStorage) is the credential-equivalent artifact that lets replays skip logins.
+`storageState.json` (Playwright cookies + localStorage) is the credential-equivalent artifact that lets replays skip logins. It is **encrypted at rest** (see [§ storageState encryption](#storagestate-encryption-at-rest)); every reader below goes through `readStorageStateFile`, which decrypts envelopes and passes legacy plaintext files through.
 
 | Stage | What happens |
 |---|---|
 | **Saved — recording** | At every auth-segment end (immediately), and best-effort at recording stop. `AuthCheckpoint.storageStateSaved` is `true` only if the write succeeded |
 | **Saved — replay** | After every successful `continueAuth` validation: the fresh post-login state overwrites `snapshots/<id>/storageState.json` and is indexed for reuse (the session summary's `hasStorageState` flips) |
 | **Validated — once up front** | At analysis start, **once per run, never per checkpoint**: only when the recording has auth checkpoints, and only if the file is present, `validateStorageState` probes it — headless chromium, `newContext({ storageState })`, navigate to the recording's start URL (`domcontentloaded`, bounded timeout), fail with `landed-on-auth-page` if the landed URL matches `isAuthUrl`. The verdict sets `hasValidStorageState` for the whole replay |
-| **Loaded** | The analyzer's default launch prefers the session's own `storageState.json` when present (clean browser + `newContext({ storageState })`), before profile/clean fallbacks |
+| **Loaded** | The analyzer's default launch prefers the session's own `storageState.json` when present (decrypted, then clean browser + `newContext({ storageState: <object> })`), before profile/clean fallbacks. A file that cannot be decrypted (e.g. copied from another machine or user) is skipped with a warning, as if absent — pause-for-login covers the replay instead |
 | **Reused across sessions** | `GET /api/storage-state/find?url=` lists sessions whose saved login matches the target **host** (shallow: existence + hostname, newest first, `validated: false`). Deep validation happens at reuse time: `POST /api/sessions` with `reuseStorageStateFrom: <sessionId>` runs the behavioural probe against the new target URL and rejects with `409` if it fails — a stale login never silently seeds a recording |
 | **Inspected** | `GET /api/sessions/:id/storage-state/status` (file/expiry metadata only), `POST .../storage-state/validate` (on-demand behavioural probe, optional `successSelector`) |
+
+### storageState encryption at rest
+
+Implemented in [`packages/engine/src/storage/secure-storage-state.ts`](../packages/engine/src/storage/secure-storage-state.ts):
+
+- **File format.** `storageState.json` stays a JSON file (existence checks like the API's `hasStorageState` are unchanged), but its content is an envelope: `{ "waaEncrypted": 1, "alg": "aes-256-gcm", "iv": <base64>, "tag": <base64>, "data": <base64> }` — the ciphertext of the Playwright storage-state object, AES-256-GCM with a fresh random 12-byte IV per write. Cookie names and values are not visible in the raw file.
+- **Key.** A per-user 256-bit key at `~/.waa/storage-state.key`, generated on first use and cached in-process. On **Windows** the raw key is protected with **DPAPI (CurrentUser scope)** — the key file holds the DPAPI blob, and key material only ever transits stdin/stdout of the PowerShell `ProtectedData` call, never a command line. On other platforms the key file holds the key base64-encoded with `0o600` permissions (ssh-key style; no OS secret store is assumed).
+- **Consequence.** Encrypted storage states are **bound to the machine + user account** that wrote them: copying a session directory (or the key file) to another user or machine yields files that cannot be decrypted there. Decrypt failures produce descriptive errors saying exactly that.
+- **Legacy compatibility.** Files written before encryption landed are plaintext; every reader detects the envelope and passes legacy plaintext through unchanged. Legacy files are **never rewritten in place** — they are only superseded when the engine next saves fresh state (which is always encrypted).
+- **Threat model honesty.** The key is managed by (and DPAPI-scoped to) the same user account that runs the tool, so this protects against *other users* on the machine, backups, and casually copied/synced snapshot directories — not against malware already running as you. That caveat is inherent to any same-account encryption.
 
 ## 4. Security posture
 
@@ -140,14 +150,14 @@ What the system refuses to persist or transmit, and what it honestly cannot avoi
 | Snapshot HTML | User-typed values and textarea content **scrubbed before disk and before the LLM**; scripts/styles/comments stripped for analysis | `snapshot/html-scrub.ts` (regex-based, best-effort by design) |
 | Cookie/token values | **Never logged, returned by any endpoint, or embedded in error messages** — storage-state APIs expose expiry metadata only | `storage/storage-state.ts` hard rule + `storage-state-api.schema.ts` DTOs |
 | Sign-in itself | Happens **in the open browser window**, never in the web UI — credentials never pass through the app | Pause-for-login design |
-| `storageState.json` on disk | **Plaintext.** Live cookies/localStorage are credentials-equivalent and are stored unencrypted under `snapshots/<id>/`. Treat the snapshots directory as sensitive; deleting the session directory is the only cleanup. At-rest encryption (OS keychain / DPAPI-backed) is a candidate future hardening — encryption keys managed by the same user account offer limited protection against the realistic threat (another process running as you), which is why it has not been prioritized | — (honest caveat) |
+| `storageState.json` on disk | **Encrypted at rest (AES-256-GCM).** Live cookies/localStorage are credentials-equivalent; every engine save writes an encryption envelope, never plaintext. The key lives at `~/.waa/storage-state.key`, DPAPI-protected (CurrentUser) on Windows / `0o600` elsewhere, making the file machine+user bound — session directories cannot be copied to another user or machine. Files saved before this hardening are plaintext and still readable (legacy passthrough; superseded on next save). Honest caveat: the key is usable by anything running as the same user, so this protects against other accounts, backups, and copied directories — not a compromised own account. See [§ storageState encryption](#storagestate-encryption-at-rest) | `storage/secure-storage-state.ts` (sole write path; all readers decrypt through it) |
 | Legacy v1 recordings | May contain plaintext credentials captured by the old recorder; the in-memory upgrade does **not** redact them and a legacy plaintext value *will* be re-typed at replay | See [recording-format.md § Security notes](./recording-format.md#security-notes) |
 
 ## 5. Worked example: the Phase 6 gate journeys
 
 The whole feature is exercised end-to-end by three real-chromium journeys against the [fixture login site](./testing.md#the-fixture-site), in [`packages/engine/src/analysis/auth-v2-e2e.spec.ts`](../packages/engine/src/analysis/auth-v2-e2e.spec.ts) (the spec serves the site itself on `:4310`; `/login.html` deliberately does **not** match the `/login` path pattern, so the gate exercises the checkpoint path and the password+failed-target fallback rather than URL matching):
 
-- **A — recording with a marked segment.** Start recording at `/protected.html` → bounced to the login wall → focusing the password field fires `auth_suspected (password-field)` → a user-marked segment is opened, the sign-in happens inside it, the segment ends. Asserts: `storageState.json` exists and carries the `waa_session` cookie; the persisted `recording.json` contains the credentials **nowhere** (`letmein`/`tester` absent from the raw file); exactly one checkpoint with `storageStateSaved: true`; the post-login click carries target candidates.
+- **A — recording with a marked segment.** Start recording at `/protected.html` → bounced to the login wall → focusing the password field fires `auth_suspected (password-field)` → a user-marked segment is opened, the sign-in happens inside it, the segment ends. Asserts: `storageState.json` exists as an **encryption envelope** (`waaEncrypted` in the raw file, the `waa_session` cookie name absent from it) and decrypts to a state carrying that cookie; the persisted `recording.json` contains the credentials **nowhere** (`letmein`/`tester` absent from the raw file); exactly one checkpoint with `storageStateSaved: true`; the post-login click carries target candidates.
 - **B — replay without a saved login.** Replaying A's recording pauses with `reason: 'recorded-checkpoint'` at the first step **past** `afterStep` (regression guard for the off-by-one). A **premature** continue (still on the login page) is rejected and `replay.auth_failed` fires; after a real sign-in in the engine-owned page, continue succeeds, fresh state is saved, the replay resumes and reaches authenticated content with an untruncated manifest.
 - **C — replay with the saved login.** B's `storageState.json` is seeded into a new session: the replay completes with **zero pauses** (the recorded auth-redirect navigation is skipped as `auth-redirect-covered-by-saved-login`) and still reaches the authenticated pages. At the gate this took 3.9 s where the pre-fix behaviour was a 72 s timeout.
 

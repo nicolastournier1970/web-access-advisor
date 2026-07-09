@@ -343,7 +343,7 @@ Path conventions are unchanged from the legacy server (`packages/engine/src/stor
 snapshots/
 └─ <sessionId>/
    ├─ recording.json           # this document (v1 or v2 on disk; always v2 in memory)
-   ├─ storageState.json        # Playwright storage state (cookies/localStorage) — credentials-equivalent
+   ├─ storageState.json        # Playwright storage state (cookies/localStorage) — credentials-equivalent, AES-256-GCM encrypted at rest
    ├─ manifest.json            # replay manifest, written by the analyzer (manifest.schema.ts)
    ├─ analysis.json            # axe + LLM analysis result (analysis.schema.ts)
    ├─ session.json             # session metadata (name, url, timestamps)
@@ -367,7 +367,7 @@ What is **never written** to `recording.json`:
 
 Adjacent files:
 
-- **`storageState.json` is credentials-equivalent** (live cookies / local storage). It is stored unencrypted; never log its contents, and treat the `snapshots/` directory as sensitive.
+- **`storageState.json` is credentials-equivalent** (live cookies / local storage) and is **encrypted at rest**: engine writes produce an AES-256-GCM envelope (`{ "waaEncrypted": 1, "alg": "aes-256-gcm", "iv", "tag", "data" }` — still a `.json` file, so existence checks are unchanged) under a per-user key at `~/.waa/storage-state.key` (DPAPI-protected on Windows, `0o600` elsewhere). Encrypted files are machine+user bound and cannot be copied between users or machines. Files written before this hardening are plaintext and remain readable (legacy passthrough — they are never rewritten in place, only superseded by the next encrypted save). Never log decrypted contents, and still treat the `snapshots/` directory as sensitive. Details: [auth-flows.md § storageState encryption](./auth-flows.md#storagestate-encryption-at-rest), implementation `packages/engine/src/storage/secure-storage-state.ts`.
 - **Snapshot HTML is scrubbed before disk and before the LLM** (`packages/engine/src/snapshot/html-scrub.ts`): `scrubSensitiveValues` empties user-typed `value` attributes and textarea content (keeping only page-markup values such as `hidden`/`submit` inputs and option labels), and `scrubHtmlForAnalysis` strips scripts/styles/comments. The scrubbers are regex-based, best-effort by design, and never throw.
 
 Legacy caveat: **v1 recordings may contain plaintext credentials** captured by the old recorder. The in-memory upgrade does not redact them (`redacted: false`, `value` copied as-is), so a legacy plaintext value — unlike a v2 redacted one — *will* be re-typed at replay. Treat legacy `recording.json` files as sensitive; deleting the session directory is the only way to remove captured values.

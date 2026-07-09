@@ -3,7 +3,7 @@
  * fixture login site with REAL headless Chromium.
  *
  *  A — recording with a marked login segment: credentials never persist,
- *      storageState (the waa_session cookie) is saved at segment end.
+ *      storageState (the waa_session cookie) is saved ENCRYPTED at segment end.
  *  B — replay without saved login pauses at the recorded checkpoint, rejects
  *      a premature continue, resumes after a real sign-in, saves fresh state.
  *  C — replay WITH the saved login never pauses.
@@ -24,6 +24,11 @@ import type { Page } from 'playwright';
 import { DEFAULT_AUTH_DOMAINS_CONFIG } from '../auth/domain-config.js';
 import { createRecorder } from '../recording/recorder.js';
 import { runAnalysis } from './analyzer.js';
+import {
+  fixedKeyProvider,
+  readStorageStateFile,
+  setDefaultKeyProviderForTests,
+} from '../storage/secure-storage-state.js';
 import { sessionPaths } from '../storage/session-files.js';
 import type { AnalyzeEvent, RecorderEvent } from '../engine-types.js';
 import type { RecordingV2 } from '@waa/shared';
@@ -57,6 +62,9 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('auth-v2 gate (fixtu
   let storageStateFromB: string;
 
   beforeAll(async () => {
+    // Fixed in-memory encryption key: the gate exercises the full encrypt→
+    // decrypt save/reuse path without touching DPAPI or the real ~/.waa.
+    setDefaultKeyProviderForTests(fixedKeyProvider(Buffer.alloc(32, 42)));
     tempRoot = await mkdtemp(path.join(os.tmpdir(), 'waa-auth-gate-'));
     server = spawn(process.execPath, [path.join(repoRoot, 'e2e/fixtures/serve.mjs'), String(FIXTURE_PORT)], {
       stdio: 'ignore',
@@ -72,6 +80,7 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('auth-v2 gate (fixtu
   }, 30_000);
 
   afterAll(() => {
+    setDefaultKeyProviderForTests(null);
     server?.kill();
   });
 
@@ -120,9 +129,13 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('auth-v2 gate (fixtu
     expect(ended.storageStateSaved).toBe(true);
     expect(ended.postLoginUrl).toContain('protected.html');
 
-    // storageState.json exists and carries the fixture session cookie (name only).
+    // storageState.json exists, is ENCRYPTED at rest (envelope on disk, cookie
+    // name invisible in the raw file), and decrypts to the fixture session cookie.
     const paths = sessionPaths(tempRoot, 'session_record');
-    const storageState = JSON.parse(await readFile(paths.storageState, 'utf-8')) as {
+    const rawStorageState = await readFile(paths.storageState, 'utf-8');
+    expect(rawStorageState).toContain('waaEncrypted');
+    expect(rawStorageState).not.toContain('waa_session');
+    const storageState = (await readStorageStateFile(paths.storageState)) as {
       cookies: Array<{ name: string }>;
     };
     expect(storageState.cookies.map((c) => c.name)).toContain('waa_session');
@@ -210,9 +223,11 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('auth-v2 gate (fixtu
     // The replay reached authenticated content.
     const urls = result.manifest.stepDetails.map((s) => s.url).join(' ');
     expect(urls).toMatch(/protected\.html|form\.html/);
-    // Fresh login state persisted for cross-session reuse (journey C).
+    // Fresh login state persisted for cross-session reuse (journey C) —
+    // encrypted at rest like every engine save.
     storageStateFromB = sessionPaths(tempRoot, 'session_replay').storageState;
     expect(existsSync(storageStateFromB)).toBe(true);
+    expect(await readFile(storageStateFromB, 'utf-8')).toContain('waaEncrypted');
   }, 120_000);
 
   it('C: replay WITH the saved login never pauses', async () => {
@@ -240,10 +255,13 @@ describe.skipIf(process.env.WAA_SKIP_BROWSER_TESTS === '1')('auth-v2 gate (fixtu
         onEvent: (e) => events.push(e),
       },
       {
-        // Mirror the default launch's storageState seeding with a held browser.
+        // Mirror the default launch's storageState seeding with a held browser:
+        // decrypt the file and seed the context with the OBJECT form.
         launch: async () => {
           const browser = await chromium.launch({ headless: true });
-          const context = await browser.newContext({ storageState: paths.storageState });
+          const context = await browser.newContext({
+            storageState: await readStorageStateFile(paths.storageState),
+          });
           const page = (await context.newPage()) as Page;
           return { browser, context, page };
         },

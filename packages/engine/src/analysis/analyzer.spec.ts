@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   analysisResultSchema,
   type ActionV2,
@@ -12,12 +13,25 @@ import {
 import type { AnalyzeEvent, AnalyzeOptions } from '../engine-types.js';
 import { StubProvider } from '../llm/stub.provider.js';
 import type { ReplayLocator } from '../replay/replayer.js';
+import {
+  fixedKeyProvider,
+  readStorageStateFile,
+  setDefaultKeyProviderForTests,
+} from '../storage/secure-storage-state.js';
 import { sessionPaths } from '../storage/session-files.js';
 import {
   runAnalysis,
   type AnalyzerDeps,
   type AnalyzerTimers,
 } from './analyzer.js';
+
+// Encrypt with a fixed in-memory key: no DPAPI/PowerShell, no ~/.waa writes.
+beforeAll(() => {
+  setDefaultKeyProviderForTests(fixedKeyProvider(Buffer.alloc(32, 42)));
+});
+afterAll(() => {
+  setDefaultKeyProviderForTests(null);
+});
 
 const APP_URL = 'https://app.example/start';
 const LOGIN_URL = 'https://login.example/signin';
@@ -111,12 +125,29 @@ class FakePage {
   }
 }
 
+/** Cookie value the fake context reports — must NEVER appear raw on disk. */
+const FAKE_COOKIE_VALUE = 'fake-cookie-value-do-not-persist';
+
 class FakeContext {
-  readonly storageStatePaths: string[] = [];
+  storageStateCalls = 0;
   closed = false;
-  async storageState(options?: { path?: string }): Promise<unknown> {
-    if (options?.path !== undefined) this.storageStatePaths.push(options.path);
-    return { cookies: [], origins: [] };
+  async storageState(): Promise<unknown> {
+    this.storageStateCalls += 1;
+    return {
+      cookies: [
+        {
+          name: 'fake_session',
+          value: FAKE_COOKIE_VALUE,
+          domain: 'app.example',
+          path: '/',
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        },
+      ],
+      origins: [],
+    };
   }
   async close(): Promise<void> {
     this.closed = true;
@@ -338,7 +369,10 @@ describe('runAnalysis (fakes)', () => {
     expect(statesAfterFail).toContain('validating');
     expect(statesAfterFail).toContain('auth_failed');
     expect(statesAfterFail[statesAfterFail.length - 1]).toBe('auth_required');
-    expect(h.context.storageStatePaths).toHaveLength(0);
+    // No save while validation keeps failing.
+    const paths = sessionPaths(path.dirname(h.sessionDir), path.basename(h.sessionDir));
+    expect(h.context.storageStateCalls).toBe(0);
+    expect(existsSync(paths.storageState)).toBe(false);
 
     // User signs in: page moves off the auth domain, redirect gone.
     h.page.currentUrl = 'https://app.example/home';
@@ -350,8 +384,16 @@ describe('runAnalysis (fakes)', () => {
     const resolved = ofType(h.events, 'auth-resolved')[0]!;
     expect(resolved.resumedAtStep).toBe(1);
     expect(resolved.storageStateSaved).toBe(true);
-    const paths = sessionPaths(path.dirname(h.sessionDir), path.basename(h.sessionDir));
-    expect(h.context.storageStatePaths).toEqual([paths.storageState]);
+    // Fresh post-login state saved ENCRYPTED at the session path.
+    expect(h.context.storageStateCalls).toBe(1);
+    const rawState = await readFile(paths.storageState, 'utf8');
+    expect(rawState).toContain('waaEncrypted');
+    expect(rawState).not.toContain('fake_session');
+    expect(rawState).not.toContain(FAKE_COOKIE_VALUE);
+    const decrypted = (await readStorageStateFile(paths.storageState)) as {
+      cookies: Array<{ name: string }>;
+    };
+    expect(decrypted.cookies.map((c) => c.name)).toEqual(['fake_session']);
 
     // Loop resumed from the paused action: the navigate was retried.
     const result = await control.result;
@@ -496,7 +538,10 @@ describe('runAnalysis (fakes)', () => {
     // Checkpoint consumed: both clicks ran, no second pause.
     expect(h.page.clickCount).toBe(2);
     expect(ofType(h.events, 'auth-required')).toHaveLength(1);
-    expect(h.context.storageStatePaths).toHaveLength(1);
+    expect(h.context.storageStateCalls).toBe(1);
+    const paths = sessionPaths(path.dirname(h.sessionDir), path.basename(h.sessionDir));
+    expect(existsSync(paths.storageState)).toBe(true);
+    expect(await readFile(paths.storageState, 'utf8')).toContain('waaEncrypted');
   });
 
   it('never rejects: a thrown launch resolves to success:false with the error', async () => {
