@@ -1,6 +1,6 @@
 /**
  * Zero-dependency static server for the e2e fixture site.
- * Usage: node e2e/fixtures/serve.mjs [port]   (default 4300)
+ * Usage: node e2e/fixtures/serve.mjs [port]   (default 4310 — 4300 is the web dev server)
  * The site is deliberately static + client-side only: the waa_session cookie
  * IS the session, so login state survives server restarts and storageState
  * reuse can be tested without a stateful backend.
@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), 'site');
-const port = Number(process.argv[2] ?? process.env.WAA_FIXTURE_PORT ?? 4300);
+const port = Number(process.argv[2] ?? process.env.WAA_FIXTURE_PORT ?? 4310);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

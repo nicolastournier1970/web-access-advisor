@@ -117,7 +117,12 @@ export class RecordingService {
     request: StartAuthSegmentRequest,
   ): Promise<StartAuthSegmentResponse> {
     const worker = this.requireRecording(sessionId);
-    const result = await worker.recorder.startAuthSegment(request.reason, request.fromStep);
+    // Engine invariants (segment already open) are caller errors, not 500s.
+    const result = await worker.recorder
+      .startAuthSegment(request.reason, request.fromStep)
+      .catch((err: unknown) => {
+        throw new ConflictException(err instanceof Error ? err.message : 'Segment state conflict');
+      });
     return {
       checkpointId: result.checkpoint.id,
       afterStep: result.checkpoint.afterStep,
@@ -127,7 +132,10 @@ export class RecordingService {
 
   async endAuthSegment(sessionId: string): Promise<EndAuthSegmentResponse> {
     const worker = this.requireRecording(sessionId);
-    const result = await worker.recorder.endAuthSegment();
+    // Engine invariants (no segment open) are caller errors, not 500s.
+    const result = await worker.recorder.endAuthSegment().catch((err: unknown) => {
+      throw new ConflictException(err instanceof Error ? err.message : 'Segment state conflict');
+    });
     return {
       checkpointId: result.checkpoint.id,
       storageStateSaved: result.storageStateSaved,

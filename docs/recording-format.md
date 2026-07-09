@@ -341,7 +341,6 @@ Path conventions are unchanged from the legacy server (`packages/engine/src/stor
 
 ```
 snapshots/
-├─ index.json                  # disk-backed session index (survives API restarts)
 └─ <sessionId>/
    ├─ recording.json           # this document (v1 or v2 on disk; always v2 in memory)
    ├─ storageState.json        # Playwright storage state (cookies/localStorage) — credentials-equivalent
@@ -356,7 +355,7 @@ snapshots/
 ```
 
 - Step directories are zero-padded to a minimum of three digits (`1` → `step_001`, `1234` → `step_1234`) and are created lazily by the capture code — only steps whose DOM change was significant enough to snapshot get a directory, so gaps in `step_NNN` are normal.
-- `recording.json` and `storageState.json` are written at recording time; `manifest.json`, `analysis.json`, and the `step_NNN/` captures are written at analysis (replay) time; `session.json` and `index.json` are maintained by the API's session store.
+- `recording.json` and `storageState.json` are written at recording time; `manifest.json`, `analysis.json`, and the `step_NNN/` captures are written at analysis (replay) time; `session.json` is maintained by the API's session store (there is no global index file — the store scans session directories and folds legacy sessions from `recording.json`).
 - Consumers must obtain these paths via `sessionPaths()` and never re-derive filenames by hand.
 
 ## Security notes

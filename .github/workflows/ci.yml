@@ -1,0 +1,65 @@
+# CI for the v2 stack (docs/rewrite-plan.md Phase 8).
+# LLM is always stubbed: no GEMINI_API_KEY is configured, so the API/engine
+# default to the stub provider and no cloud calls are made.
+name: CI
+
+on:
+  push:
+    branches: [main, refactor]
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # postinstall runs `playwright install chromium firefox`; ubuntu also
+      # needs the OS packages the browsers link against.
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium firefox
+
+      # Guard: exactly one zod major (v4) across the workspace. A hoisted v3
+      # would silently break nestjs-zod DTO validation (docs/rewrite-plan.md).
+      - name: zod major guard
+        run: |
+          if npm ls zod | grep -E 'zod@3\.'; then
+            echo '::error::zod v3 found in the dependency tree'
+            exit 1
+          fi
+
+      - run: npm run build
+
+      - name: Test (shared, api, web, cli)
+        run: |
+          npm test -w packages/shared
+          npm test -w apps/api
+          npm test -w apps/web
+          npm test -w packages/cli
+
+      # Engine: full suite (real-browser smokes + the auth-v2 fixture gate,
+      # which spawns its own fixture server) on Linux; browser smokes are
+      # skipped on Windows to keep the matrix fast.
+      - name: Test (engine, full — Linux)
+        if: runner.os == 'Linux'
+        run: npm test -w packages/engine
+
+      - name: Test (engine, no browser smokes — Windows)
+        if: runner.os == 'Windows'
+        env:
+          WAA_SKIP_BROWSER_TESTS: '1'
+        run: npm test -w packages/engine

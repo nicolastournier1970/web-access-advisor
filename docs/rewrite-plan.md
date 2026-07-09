@@ -46,11 +46,11 @@ web-access-advisor/
 │  └─ api/                      # NestJS
 ├─ packages/
 │  ├─ shared/                   # @waa/shared — zod schemas + inferred types only
-│  ├─ core/                     # @waa/core — Playwright engine (no HTTP imports)
-│  └─ cli/                      # parked; re-ported in Phase 8
+│  ├─ engine/                   # @waa/core — Playwright engine (no HTTP imports)
+│  └─ cli/                      # @waa/cli — fresh CLI over the engine (Phase 8)
 ├─ e2e/                         # Playwright: fixtures/site/ (fake login), specs/, parity/
 ├─ docs/                        # architecture, auth-flows, formats, ADRs, OpenAPI
-└─ snapshots/                   # unchanged; gains snapshots/index.json session index
+└─ snapshots/                   # unchanged; per-session session.json metadata (no global index)
 ```
 
 ## 4. Angular app (`apps/web`)
@@ -84,12 +84,12 @@ Key structure:
 
 | Module | Responsibility |
 |---|---|
-| `sessions` | List/get/delete; snapshot file serving; **disk-backed session store** (`snapshots/index.json` + per-session `session.json`) that survives restarts (interrupted sessions marked, not lost); **SessionWorker registry** — per-session isolation replacing the global singleton; idle GC; graceful shutdown |
+| `sessions` | List/get/delete; snapshot file serving; **disk-backed session store** (per-session `session.json`; directory scan, no global index) that survives restarts (interrupted sessions marked, not lost); **SessionWorker registry** — per-session isolation replacing the global singleton; idle GC; graceful shutdown |
 | `recording` | `POST /api/sessions` (start), `POST /:id/recording/stop`, `POST /:id/recording/auth/start\|end` (login segments); recorder events → SSE |
 | `replay` | `POST /:id/replay/auth/continue\|cancel`; drives the auth-checkpoint machine |
 | `analysis` | `POST /:id/analysis` (202; progress over SSE), `GET /:id/analysis`; result persisted to `snapshots/<id>/analysis.json` |
 | `browsers` | `GET /api/browsers`, `POST /api/browsers/profile-probe` |
-| `storage-state` | status / validate / `GET /api/storage-state/find?url=` (**validated** cross-session reuse; index includes recording-only sessions) |
+| `storage-state` | status / validate / `GET /api/storage-state/find?url=` (shallow host-matched discovery incl. recording-only sessions; deep validation happens at reuse time via `reuseStorageStateFrom`) |
 | `events` | `@Sse('sessions/:id/events')`; per-session Subject + ring buffer (500 events, monotonic ids) |
 | `llm` | provider token → Gemini or Stub by env |
 
@@ -145,7 +145,7 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 ## 7. Testing strategy
 
 - **Unit (bulk, Vitest)**: core pure logic (selector engine, auth-checkpoint machine, format loader, DOM-change detector, batching, HTML scrubber), Nest services (`@nestjs/testing` + supertest), Angular signal stores.
-- **Component (selective)**: ~6 high-value components asserting accessibility semantics (roles, names, `aria-live`, focus trap/restore); `vitest-axe` smoke checks.
+- **Component (selective)**: ~6 high-value components asserting accessibility semantics (roles, names, `aria-live`, focus trap/restore); a11y semantics asserted directly in component tests (vitest-axe was planned but not adopted).
 - **E2E (small, Playwright)**: 4 journeys against a local fixture site (`e2e/fixtures/site/` — static pages with intentional a11y violations + fake login that sets a cookie): record→stop persisted; record with marked login → masked checkpoint + zero credential actions; analyze → manifest + axe results; replay hits login wall → pause → login → resume. LLM stubbed (`LLM_PROVIDER=stub`); recorder headless in e2e mode.
 - **Parity harness** (`e2e/parity/compare-manifests.ts`): golden sessions from `./snapshots/` run through old engine vs new core in axe-only mode; asserts same executed-action sequence, explained snapshot-step differences, same axe rule-id sets per step. Gate for Phase 2 merge and again before cutover.
 - **CI**: GitHub Actions, windows + ubuntu matrix: lint → typecheck → unit → e2e (ubuntu); LLM always stubbed.
@@ -159,7 +159,7 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 | 2 | Core engine refactor | split monoliths per §6; behavior-preserving port, then fixes (step join, swallowed failures, provider abstraction, config-driven domains, HTML scrub); selector engine; v2 format | **XL — long pole** | parity harness green |
 | 3 | NestJS API | skeleton + env config + Swagger; disk-backed session store + worker registry + graceful shutdown; all modules; SSE + ring buffer; supertest | L | golden-session analyze end-to-end (stub LLM) |
 | 4 | Angular shell + recording | workspace, zoneless, Tailwind theme port, UI kit + CDK plumbing, routes/stores/clients; setup + record pages | L | record→stop journey on new stack |
-| 5 | Analysis + results UI | analyze page (SSE progress), results page (findings/axe/screenshots/print), sessions browser | M | component tests + vitest-axe |
+| 5 | Analysis + results UI | analyze page (SSE progress), results page (findings/axe/screenshots/print), sessions browser | M | component tests asserting a11y semantics |
 | 6 | Auth v2 | recording auth segments end-to-end; replay pause-for-login end-to-end | L | fixture-login e2e journey green |
 | 7 | Cutover | tag `v1-legacy` FIRST, then on this branch delete `src/`, `server/`, legacy `packages/core`/`packages/cli` leftovers, root Vite/Tailwind/PostCSS configs and legacy deps; new root scripts (`npm run dev` = Nest + Angular); rewrite README | S | full manual verification pass; `git checkout v1-legacy` restores v1 |
 | 8 | Docs, CLI, CI | docs set (below), JSDoc pass, CLI re-port over `@waa/core`, GitHub Actions | M | — |
@@ -202,8 +202,8 @@ Then: SSE `replay.auth_required` → UI banner + screen-reader announcement → 
 - [x] **Phase 4 — Angular shell + recording flow** (commit `be51353`): Angular 21.2 zoneless/standalone/signals (v22 blocked on Node ≥24.15), Tailwind v4 + Blueberry theme (4 AA contrast fixes documented in theme.css), fetch-based schema-parsing api-client + SSE client with connectionState, signal stores, CDK dialog/toast/announcer kit, setup + record pages (login-segment toggle, auto-detect dialog with the fromStep mapping), dev proxy → :3003, dev port 4300 (4200 occupied locally). 27 tests + Playwright integration proof (real browsers + 59 legacy sessions rendered).
 - [x] **Phase 5 — Analysis + results UI** (commit `b814243`): analysis signal store, analyze page (three-phase board, progressbar semantics, pause-for-login banner with countdown/Continue/Cancel/auth-failed reason), results page (score meter, severity chips, LLM+axe merge with fingerprint dedup + duplicates toggle, auth-step findings hidden with note, finding cards with corrected-code copy + WCAG links, step screenshots, CSV + print export), legacy manifest-only sessions get a re-run empty state. 71/71 web tests; real analysis of the golden HBS session driven through the UI end-to-end. Fix: CDK a11y-prebuilt.css was missing (announcer text was visible).
 - [x] **Phase 6 — Auth v2 gate GREEN** (commit `7d1327a`): three real-chromium journeys against the fixture site — (A) recording with a marked segment: `auth_suspected` on password focus, credentials appear nowhere in recording.json, storageState saved at segment end; (B) replay pauses at the recorded checkpoint, premature Continue rejected, real sign-in resumes and persists fresh state; (C) saved login → zero pauses (3.9 s, was a 72 s timeout). The gate caught and fixed two engine bugs: `checkpointDueAt` off-by-one (paused before re-executing the pre-login bounce instead of before the first post-login action) and authenticated replays re-navigating into recorded auth redirects (now skipped as `auth-redirect-covered-by-saved-login`). Engine suite: 369.
-- [ ] Phase 7 — Cutover (tag `v1-legacy`, then delete legacy on this branch; `main` unaffected)
-- [ ] Phase 8 — Docs, CLI, CI
+- [x] **Phase 7 — Cutover** (commit `e47ee93`; recovery tag `v1-legacy`): legacy `src/`, `server/`, `packages/core`, `packages/cli`, root Vite configs and all legacy-only dependencies removed on this branch. `npm run dev` now builds shared+engine+api and runs API + Angular concurrently; **port 3002 is the canonical API port** (freed by the legacy removal; matches existing `.env` files — proxy/env-default/README updated). README + `.env.example` rewritten; `docs/openapi.json` exported from live Swagger. All four workspaces build; 17+27+71 tests green (engine 369 verified pre-cutover); API boots with health OK.
+- [ ] Phase 8 — Docs (architecture/auth-flows/api-reference/development/testing — *in flight*), fresh CLI over `@waa/core` + GitHub Actions CI (*in flight*)
 
 ### Open items carried forward
 - **Phase 6 decision**: mapping `recording.auth_suspected.suspectedAtStep` → `fromStep` when the user confirms a retroactive segment: for `auth-domain-navigation` the trigger IS a recorded step (use `suspectedAtStep − 1`); for `password-field` the trigger is a focus that was never recorded (use `suspectedAtStep`). Decide + test in Phase 6.

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"],
+    // Deliberately clear the source path aliases inherited from
+    // tsconfig.base.json: @waa/shared and @waa/core must resolve through the
+    // workspace symlinks to their BUILT dists, never their sources (the
+    // apps/api pattern). If they look stale: npm run build -w packages/shared
+    // -w packages/engine
+    "paths": {}
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts", "src/**/__tests__/**"]
+}

@@ -8,8 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w packages/shared -w packages/engine -w apps/api -w apps/web",
-    "test": "npm run test -w packages/shared -w packages/engine -w apps/api -w apps/web",
+    "build": "npm run build -w packages/shared -w packages/engine -w apps/api -w apps/web -w packages/cli",
+    "test": "npm run test -w packages/shared -w packages/engine -w apps/api -w apps/web -w packages/cli",
+    "cli": "node packages/cli/dist/cli.js",
     "dev": "npm run build -w packages/shared -w packages/engine -w apps/api && concurrently -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node --env-file-if-exists=.env apps/api/dist/main.js",
     "dev:web": "npm run dev -w apps/web",
