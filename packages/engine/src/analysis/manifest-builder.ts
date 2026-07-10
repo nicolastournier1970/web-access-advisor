@@ -267,8 +267,8 @@ function violationKey(violation: AxeViolation): string {
  *    node targets; the first occurrence keeps its step/url and every further
  *    occurrence only appends to `stepOccurrences`;
  *  - merge the LLM's `enhancedAxeViolations` by rule id (explanation,
- *    recommendation, `wcag` → `wcagReference` with any stray 'WCAG ' prefix
- *    stripped from the guideline);
+ *    recommendation, correctedCode/codeChangeSummary when non-empty, `wcag` →
+ *    `wcagReference` with any stray 'WCAG ' prefix stripped from the guideline);
  *  - sort by impact severity (critical → serious → moderate → minor → none).
  *
  * Raw snapshot violations are `unknown` (they come straight from axe-core);
@@ -310,6 +310,8 @@ export function consolidateAxeViolations(
     if (match === undefined) continue;
     violation.explanation = match.explanation;
     violation.recommendation = match.recommendation;
+    if (match.correctedCode !== '') violation.correctedCode = match.correctedCode;
+    if (match.codeChangeSummary !== '') violation.codeChangeSummary = match.codeChangeSummary;
     if (match.wcag !== undefined) {
       violation.wcagReference = {
         ...match.wcag,

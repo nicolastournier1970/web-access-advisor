@@ -61,6 +61,8 @@ const JSON_CONTRACT = `{
       "id": "axe rule id from the input report (e.g. landmark-one-main, label, region)",
       "explanation": "User-impact focused explanation of how this violation affects people using assistive technology",
       "recommendation": "Clear, actionable guidance on how to fix this violation - end with 'Reference: [helpUrl from the violation]'",
+      "correctedCode": "Corrected HTML for the FIRST affected node of this violation (from its 'html' field) with the minimal fix applied - actual code, never a prose description",
+      "codeChangeSummary": "Brief summary of the fix (e.g. 'Added aria-label to button'); note when the same pattern applies to the other affected elements",
       "wcag": {
         "guideline": "Guideline number only, no 'WCAG' prefix (WRONG: 'WCAG 2.4.6', CORRECT: '2.4.6')",
         "level": "A|AA|AAA",
@@ -84,6 +86,7 @@ ${JSON_CONTRACT}
 - relevantHtml must be copied EXACTLY from the DOM snapshot (verbatim, minimal offending element only). For missing-element issues, show the container where the element should be added (e.g. for a missing \`main\` landmark, the wrapper that should become/contain \`main\`; for a missing \`h1\`, the section where it belongs).
 - correctedCode must be complete, working HTML for the exact same element(s) shown in relevantHtml with the minimal fix applied - never a prose description of the change.
 - MANDATORY AXE ENHANCEMENT: enhance EVERY axe violation present in the input reports as one entry in "enhancedAxeViolations" (if the input lists 5 distinct violation ids, output 5 entries). Explanations must be user-impact focused, recommendations actionable and ending with 'Reference: [helpUrl]', and each entry must carry the complete wcag object (guideline number WITHOUT the 'WCAG' prefix - the UI adds it).
+- AXE CORRECTED CODE: every "enhancedAxeViolations" entry must also carry "correctedCode" and "codeChangeSummary". Base correctedCode on the violation's first node's 'html' sample: reproduce that element with the minimal fix applied (complete, working HTML - never prose). When the fix is not expressible in the sampled markup alone (e.g. a color-contrast fix living in a stylesheet), show the closest code-level fix (e.g. the element with an adjusted inline style or class) and say so in codeChangeSummary.
 - Deduplicate across arrays: do NOT add a "components" entry for an issue already covered by an "enhancedAxeViolations" entry; use "components" for issues your semantic analysis finds beyond the axe report.
 - "score" is an overall 0-100 accessibility score for the analyzed content.
 - Deduplicate: report each distinct issue once even if it appears in several snapshots (attribute it to the first step it appears in).

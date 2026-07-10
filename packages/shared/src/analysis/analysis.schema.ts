@@ -46,6 +46,8 @@ export const axeViolationSchema = z
     // LLM enrichment + step attribution added by the analyzer
     explanation: z.string().optional(),
     recommendation: z.string().optional(),
+    correctedCode: z.string().optional(),
+    codeChangeSummary: z.string().optional(),
     wcagReference: wcagRefSchema.optional(),
     step: z.number().int().optional(),
     url: z.string().optional(),
@@ -113,6 +115,9 @@ export const llmAnalysisSchema = z
             id: z.string(),
             explanation: z.string().default(''),
             recommendation: z.string().default(''),
+            /** Fixed markup for a representative affected element (same pattern applies to the rest). */
+            correctedCode: z.string().default(''),
+            codeChangeSummary: z.string().default(''),
             wcag: wcagRefSchema.optional(),
           })
           .catchall(z.unknown()),

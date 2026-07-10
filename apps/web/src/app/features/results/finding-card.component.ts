@@ -117,39 +117,41 @@ const SEVERITY_BADGES: Record<Impact, BadgeKind> = {
             </div>
           }
 
-          @if (finding().correctedCode) {
+          @if (finding().correctedCode || finding().recommendation) {
             <div>
               <div class="flex items-center justify-between gap-3">
                 <h4 class="text-sm font-semibold text-ink">Recommended</h4>
-                <button
-                  type="button"
-                  data-testid="copy-code"
-                  class="print-hidden inline-flex items-center gap-1 rounded-md border border-success-accent bg-success-bg px-2 py-1 text-xs font-medium text-success-strong hover:bg-success-bg/70"
-                  (click)="copyCorrectedCode()"
-                >
-                  <svg class="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path
-                      d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16h-9V7h9v14Z"
-                    />
-                  </svg>
-                  Copy<span class="sr-only"> corrected code for {{ finding().title }}</span>
-                </button>
+                @if (finding().correctedCode) {
+                  <button
+                    type="button"
+                    data-testid="copy-code"
+                    class="print-hidden inline-flex items-center gap-1 rounded-md border border-success-accent bg-success-bg px-2 py-1 text-xs font-medium text-success-strong hover:bg-success-bg/70"
+                    (click)="copyCorrectedCode()"
+                  >
+                    <svg class="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16h-9V7h9v14Z"
+                      />
+                    </svg>
+                    Copy<span class="sr-only"> corrected code for {{ finding().title }}</span>
+                  </button>
+                }
               </div>
+              @if (finding().recommendation) {
+                <p class="mt-1 whitespace-pre-line text-sm text-ink">
+                  {{ finding().recommendation }}
+                </p>
+              }
               @if (finding().codeChangeSummary) {
                 <p class="mt-1 whitespace-pre-line text-sm text-ink">
                   {{ finding().codeChangeSummary }}
                 </p>
               }
-              <pre
-                class="mt-1 overflow-x-auto rounded-md border border-success-accent/50 bg-success-bg p-3 font-mono text-sm"
-              ><code>{{ finding().correctedCode }}</code></pre>
-            </div>
-          }
-
-          @if (finding().recommendation) {
-            <div>
-              <h4 class="text-sm font-semibold text-ink">Recommended</h4>
-              <p class="mt-1 whitespace-pre-line text-sm text-ink">{{ finding().recommendation }}</p>
+              @if (finding().correctedCode) {
+                <pre
+                  class="mt-1 overflow-x-auto rounded-md border border-success-accent/50 bg-success-bg p-3 font-mono text-sm"
+                ><code>{{ finding().correctedCode }}</code></pre>
+              }
             </div>
           }
 

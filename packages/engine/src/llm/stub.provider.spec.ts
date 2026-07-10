@@ -54,6 +54,17 @@ describe('StubProvider.analyzeBatch', () => {
     expect(analysis.components[1]!.selector).toBeUndefined();
   });
 
+  it('emits one enhanced entry with corrected code per distinct violation id', async () => {
+    const analysis = await new StubProvider().analyzeBatch(request(), 1000);
+    expect(analysis.enhancedAxeViolations).toHaveLength(1);
+    const [enhanced] = analysis.enhancedAxeViolations!;
+    expect(enhanced!.id).toBe('label');
+    expect(enhanced!.correctedCode).toContain('stub fix: label');
+    expect(enhanced!.codeChangeSummary).toContain('label');
+    expect(enhanced!.recommendation).toMatch(/Reference: https:\/\//);
+    expect(enhanced!.wcag?.guideline).toBe('4.1.2');
+  });
+
   it('is deterministic and schema-valid', async () => {
     const provider = new StubProvider();
     const a = await provider.analyzeBatch(request(), 1000);
@@ -79,5 +90,16 @@ describe('StubProvider.consolidate', () => {
     expect(merged.summary).toContain('https://example.com');
     expect(merged.score).toBe(42);
     expect(llmAnalysisSchema.safeParse(merged).success).toBe(true);
+  });
+
+  it('merges enhanced axe violations by id (first wins)', async () => {
+    const provider = new StubProvider();
+    const batch1 = await provider.analyzeBatch(request(), 1000);
+    const batch2 = await provider.analyzeBatch(request(), 1000);
+    const merged = await provider.consolidate([batch1, batch2], 'https://example.com');
+
+    expect(merged.enhancedAxeViolations).toHaveLength(1);
+    expect(merged.enhancedAxeViolations![0]!.id).toBe('label');
+    expect(merged.enhancedAxeViolations![0]!.correctedCode).toContain('stub fix: label');
   });
 });

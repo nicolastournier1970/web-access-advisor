@@ -308,6 +308,8 @@ describe('consolidateAxeViolations', () => {
           id: 'image-alt',
           explanation: 'Images need alt text.',
           recommendation: 'Add alt attributes.',
+          correctedCode: '<img src="logo.png" alt="Company logo">',
+          codeChangeSummary: 'Added alt attribute to image.',
           wcag: {
             guideline: 'WCAG 1.1.1',
             level: 'A',
@@ -322,11 +324,34 @@ describe('consolidateAxeViolations', () => {
     const enhanced = consolidated.find((v) => v.id === 'image-alt')!;
     expect(enhanced.explanation).toBe('Images need alt text.');
     expect(enhanced.recommendation).toBe('Add alt attributes.');
+    expect(enhanced.correctedCode).toBe('<img src="logo.png" alt="Company logo">');
+    expect(enhanced.codeChangeSummary).toBe('Added alt attribute to image.');
     expect(enhanced.wcagReference?.guideline).toBe('1.1.1'); // prefix stripped
     expect(enhanced.wcagReference?.level).toBe('A');
 
     const untouched = consolidated.find((v) => v.id === 'label')!;
     expect(untouched.explanation).toBeUndefined();
+    expect(untouched.correctedCode).toBeUndefined();
+  });
+
+  it('leaves correctedCode/codeChangeSummary unset when the enhancement omits them', () => {
+    const snapshots = [
+      snap(1, SESSION_URL, { axeViolations: [axeViolation('image-alt', 'critical', ['img'])] }),
+    ];
+    const llm = llmAnalysisSchema.parse({
+      summary: '',
+      components: [],
+      recommendations: [],
+      score: 80,
+      // correctedCode/codeChangeSummary omitted → schema defaults ''
+      enhancedAxeViolations: [{ id: 'image-alt', explanation: 'x', recommendation: 'y' }],
+    });
+
+    const consolidated = consolidateAxeViolations(snapshots, llm);
+    const enhanced = consolidated.find((v) => v.id === 'image-alt')!;
+    expect(enhanced.explanation).toBe('x');
+    expect(enhanced.correctedCode).toBeUndefined();
+    expect(enhanced.codeChangeSummary).toBeUndefined();
   });
 
   it('sorts by impact severity and drops malformed entries without throwing', () => {

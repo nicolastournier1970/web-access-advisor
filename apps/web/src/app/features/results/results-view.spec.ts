@@ -178,6 +178,43 @@ describe('buildResultsView', () => {
     expect(finding.wcagUrl).toContain('w3.org');
   });
 
+  it('carries corrected code onto axe findings (own field or enrichment)', () => {
+    const result = analysisResult({
+      analysis: {
+        components: [],
+        enhancedAxeViolations: [
+          {
+            id: 'button-name',
+            explanation: 'x',
+            recommendation: 'y',
+            correctedCode: '<button aria-label="Close">X</button>',
+            codeChangeSummary: 'Added aria-label; apply to all icon buttons.',
+          },
+        ],
+        score: 50,
+      },
+      axeResults: [violation()],
+    });
+    const [finding] = buildResultsView(result).findings;
+    expect(finding.correctedCode).toBe('<button aria-label="Close">X</button>');
+    expect(finding.codeChangeSummary).toBe('Added aria-label; apply to all icon buttons.');
+
+    // Engine-side merge already stamped the violation → enrichment must not clobber it.
+    const preMerged = analysisResult({
+      analysis: {
+        components: [],
+        enhancedAxeViolations: [
+          { id: 'button-name', explanation: 'x', recommendation: 'y', correctedCode: 'stale' },
+        ],
+        score: 50,
+      },
+      axeResults: [violation({ correctedCode: '<button aria-label="Menu"></button>' })],
+    });
+    expect(buildResultsView(preMerged).findings[0]!.correctedCode).toBe(
+      '<button aria-label="Menu"></button>',
+    );
+  });
+
   it('handles the wcagReference object form already present on the violation', () => {
     const result = analysisResult({
       axeResults: [

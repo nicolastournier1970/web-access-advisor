@@ -149,8 +149,8 @@ function axeFinding(
       selector: nodeSelector(node),
       ...(node.failureSummary !== undefined ? { failureSummary: node.failureSummary } : {}),
     })),
-    correctedCode: '',
-    codeChangeSummary: '',
+    correctedCode: violation.correctedCode ?? '',
+    codeChangeSummary: violation.codeChangeSummary ?? '',
     recommendation: violation.recommendation ?? '',
     selector: nodeSelector(violation.nodes[0] ?? { html: '', target: [] }),
     wcagLabel,
@@ -232,6 +232,8 @@ export function buildResultsView(result: AnalysisResult): ResultsView {
           ...raw,
           explanation: raw.explanation ?? enhanced.explanation,
           recommendation: raw.recommendation ?? enhanced.recommendation,
+          correctedCode: raw.correctedCode ?? enhanced.correctedCode,
+          codeChangeSummary: raw.codeChangeSummary ?? enhanced.codeChangeSummary,
           wcagReference: raw.wcagReference ?? enhanced.wcag,
         }
       : raw;

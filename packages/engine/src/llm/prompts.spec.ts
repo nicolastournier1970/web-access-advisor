@@ -91,6 +91,15 @@ describe('buildComponentAnalysisPrompt', () => {
     expect(prompt).toMatch(/already covered by an "enhancedAxeViolations" entry/);
   });
 
+  it('mandates corrected code on every enhanced axe violation', () => {
+    const prompt = buildComponentAnalysisPrompt(request());
+    expect(prompt).toMatch(/AXE CORRECTED CODE/);
+    expect(prompt).toMatch(/must also carry "correctedCode" and "codeChangeSummary"/);
+    // Fix code must derive from the violation's own node sample, as real markup.
+    expect(prompt).toMatch(/first node's 'html' sample/i);
+    expect(prompt).toMatch(/never prose/i);
+  });
+
   it('adapts to each staticSectionMode', () => {
     expect(buildComponentAnalysisPrompt(request({ staticSectionMode: 'ignore' }))).toContain(
       'STATIC SECTIONS: IGNORE',
