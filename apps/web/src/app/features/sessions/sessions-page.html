@@ -1,9 +1,4 @@
-<div class="flex items-baseline justify-between">
-  <h1 class="text-2xl font-semibold text-blueberry-700">Sessions</h1>
-  <a routerLink="/" class="text-sm font-medium text-blueberry-600 hover:underline">
-    New recording
-  </a>
-</div>
+<h1 class="text-2xl font-semibold text-blueberry-700">Sessions</h1>
 
 @if (store.loading() && store.sessions().length === 0) {
   <p class="mt-6 flex items-center gap-2 text-sm text-muted">
@@ -27,8 +22,37 @@
           <th scope="col" class="px-4 py-3 font-semibold">Actions</th>
           <th scope="col" class="px-4 py-3 font-semibold">Login</th>
           <th scope="col" class="px-4 py-3 font-semibold">Started</th>
-          <th scope="col" class="px-4 py-3 font-semibold">
-            <span class="sr-only">Operations</span>
+          <th scope="col" class="px-4 py-3 text-right font-semibold">
+            <span class="inline-flex items-center justify-end gap-1.5">
+              Operations
+              <waa-info-tip label="About the session operations">
+                <p class="font-semibold text-ink">What each operation does</p>
+                <dl class="mt-1.5 space-y-1.5">
+                  <div>
+                    <dt class="inline font-semibold text-blueberry-700">Analyze</dt>
+                    <dd class="inline">
+                      — replays this session's recorded steps and generates the accessibility
+                      report (axe + AI findings). Shown until a report exists.
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="inline font-semibold text-blueberry-700">Results</dt>
+                    <dd class="inline">— opens the report already generated for this session.</dd>
+                  </div>
+                  <div>
+                    <dt class="inline font-semibold text-blueberry-700">Record again</dt>
+                    <dd class="inline">
+                      — starts a brand-new recording of the same site, with this session's URL and
+                      browser pre-filled. It does not re-run this recording.
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="inline font-semibold text-danger">Delete</dt>
+                    <dd class="inline">— removes this session and its snapshots from disk.</dd>
+                  </div>
+                </dl>
+              </waa-info-tip>
+            </span>
           </th>
         </tr>
       </thead>
@@ -60,43 +84,48 @@
               {{ session.startTime | date: 'medium' }}
             </td>
             <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-3 whitespace-nowrap">
+              <div class="flex flex-wrap items-center justify-end gap-2 whitespace-nowrap">
                 @if (session.status === 'recording') {
                   <a
+                    waaButton
+                    waaButtonSize="sm"
                     [routerLink]="['/sessions', session.sessionId, 'record']"
-                    class="font-medium text-blueberry-600 hover:underline"
                   >
                     Open recording
                   </a>
                 } @else {
-                  <a
-                    routerLink="/"
-                    [queryParams]="recordAgainParams(session)"
-                    class="font-medium text-blueberry-600 hover:underline"
-                  >
-                    Record again
-                  </a>
                   @if (canAnalyze(session)) {
                     <a
+                      waaButton
+                      waaButtonSize="sm"
                       [routerLink]="['/sessions', session.sessionId, 'analyze']"
-                      class="font-medium text-blueberry-600 hover:underline"
                     >
                       Analyze
                     </a>
                   }
                   @if (session.hasAnalysis) {
                     <a
+                      waaButton="secondary"
+                      waaButtonSize="sm"
                       [routerLink]="['/sessions', session.sessionId, 'results']"
-                      class="font-medium text-blueberry-600 hover:underline"
                     >
                       Results
                     </a>
                   }
+                  <a
+                    waaButton="secondary"
+                    waaButtonSize="sm"
+                    routerLink="/"
+                    [queryParams]="recordAgainParams(session)"
+                  >
+                    Record again
+                  </a>
                 }
                 <button
                   type="button"
+                  waaButton="ghost-danger"
+                  waaButtonSize="sm"
                   (click)="remove(session)"
-                  class="font-medium text-danger hover:underline"
                 >
                   Delete<span class="sr-only"> session {{ session.name || session.sessionId }}</span>
                 </button>

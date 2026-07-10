@@ -12,6 +12,8 @@ import { ConfirmDialogService } from '../../shared/ui/confirm-dialog.service';
 import { ToastService } from '../../shared/ui/toast.service';
 import { BadgeComponent, type BadgeKind } from '../../shared/ui/badge.component';
 import { SpinnerComponent } from '../../shared/ui/spinner.component';
+import { ButtonDirective } from '../../shared/ui/button.directive';
+import { InfoTipComponent } from '../../shared/ui/info-tip.component';
 
 const STATUS_KINDS: Record<SessionStatus, BadgeKind> = {
   recording: 'brand',
@@ -27,7 +29,14 @@ const STATUS_KINDS: Record<SessionStatus, BadgeKind> = {
 @Component({
   selector: 'waa-sessions-page',
   templateUrl: './sessions-page.html',
-  imports: [RouterLink, DatePipe, BadgeComponent, SpinnerComponent],
+  imports: [
+    RouterLink,
+    DatePipe,
+    BadgeComponent,
+    SpinnerComponent,
+    ButtonDirective,
+    InfoTipComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionsPage implements OnInit {

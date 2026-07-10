@@ -5,12 +5,18 @@
  */
 import { Directive, computed, input } from '@angular/core';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost-danger';
+export type ButtonSize = 'md' | 'sm';
 
 const BASE =
-  'inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium ' +
+  'inline-flex items-center justify-center gap-2 rounded-md font-medium ' +
   'transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2';
+
+const SIZES: Record<ButtonSize, string> = {
+  md: 'px-4 py-2 text-sm',
+  sm: 'px-2.5 py-1.5 text-xs',
+};
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
@@ -19,6 +25,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
     'border border-blueberry-300 bg-white text-blueberry-700 hover:bg-blueberry-100 ' +
     'focus-visible:outline-blueberry-600',
   danger: 'bg-danger text-white hover:bg-danger-strong focus-visible:outline-danger',
+  // De-emphasised destructive action (row actions): red text, no fill.
+  'ghost-danger':
+    'text-danger hover:bg-danger/10 focus-visible:outline-danger',
 };
 
 @Directive({
@@ -32,5 +41,9 @@ export class ButtonDirective {
     transform: (value) => (value === '' ? 'primary' : value),
   });
 
-  protected readonly classes = computed(() => `${BASE} ${VARIANTS[this.variant()]}`);
+  readonly size = input<ButtonSize>('md', { alias: 'waaButtonSize' });
+
+  protected readonly classes = computed(
+    () => `${BASE} ${SIZES[this.size()]} ${VARIANTS[this.variant()]}`,
+  );
 }
