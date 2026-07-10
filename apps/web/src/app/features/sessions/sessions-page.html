@@ -94,22 +94,23 @@
                     Open recording
                   </a>
                 } @else {
-                  @if (canAnalyze(session)) {
-                    <a
-                      waaButton
-                      waaButtonSize="sm"
-                      [routerLink]="['/sessions', session.sessionId, 'analyze']"
-                    >
-                      Analyze
-                    </a>
-                  }
                   @if (session.hasAnalysis) {
                     <a
-                      waaButton="secondary"
+                      waaButton
                       waaButtonSize="sm"
                       [routerLink]="['/sessions', session.sessionId, 'results']"
                     >
                       Results
+                    </a>
+                  }
+                  @if (canAnalyze(session)) {
+                    <!-- Primary when no report exists yet; a retry (secondary) once one does. -->
+                    <a
+                      [waaButton]="session.hasAnalysis ? 'secondary' : 'primary'"
+                      waaButtonSize="sm"
+                      [routerLink]="['/sessions', session.sessionId, 'analyze']"
+                    >
+                      Analyze
                     </a>
                   }
                   <a
