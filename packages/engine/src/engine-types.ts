@@ -173,6 +173,13 @@ export interface AnalyzeOptions {
   authConfig: AuthDomainsConfig;
   /** Milliseconds a paused replay waits for login before timing out (default 10 min). */
   authPauseTimeoutMs: number;
+  /**
+   * Ceiling (ms) for the per-action page-load settle during replay. The main
+   * replay-speed lever; default 3000. Chatty sites used to hang the full 15s.
+   */
+  replayLoadWaitMs?: number;
+  /** Multiplier on the fixed per-action settle pauses during replay (default 1). */
+  replayPauseScale?: number;
   onEvent: (event: AnalyzeEvent) => void;
 }
 

@@ -475,26 +475,38 @@ function settlePage(log: string[], failLoadState = false): ReplayPageActions {
 }
 
 describe('settle', () => {
-  it('waits for domcontentloaded then bounded networkidle after navigate', async () => {
+  it("waits for a bounded page 'load' after navigate (never networkidle)", async () => {
     const log: string[] = [];
     await settle(settlePage(log), action({ type: 'navigate', url: 'https://a.test/' }), TINY_DELAYS);
 
-    expect(log).toContain('wls:domcontentloaded:10000');
-    expect(log).toContain('wls:networkidle:15000');
-  });
-
-  it('caps the networkidle wait at 15s even when asked for more', async () => {
-    const log: string[] = [];
-    await settle(settlePage(log), action({ type: 'click' }), {
-      ...TINY_DELAYS,
-      networkIdleTimeoutMs: 60_000,
-    });
-
-    expect(log).toContain('wls:networkidle:15000');
+    // Default ceiling 3s; 'load' is used, never the hang-prone 'networkidle'.
+    expect(log).toContain('wls:load:3000');
+    expect(log.some((entry) => entry.startsWith('wls:networkidle'))).toBe(false);
     expect(log.some((entry) => entry.startsWith('wls:domcontentloaded'))).toBe(false);
   });
 
-  it('does not wait for networkidle after form actions', async () => {
+  it('honours loadWaitMs and caps it at 15s', async () => {
+    const short: string[] = [];
+    await settle(settlePage(short), action({ type: 'click' }), { ...TINY_DELAYS, loadWaitMs: 1000 });
+    expect(short).toContain('wls:load:1000');
+
+    const capped: string[] = [];
+    await settle(settlePage(capped), action({ type: 'click' }), {
+      ...TINY_DELAYS,
+      loadWaitMs: 60_000,
+    });
+    expect(capped).toContain('wls:load:15000');
+
+    // Legacy alias still works.
+    const alias: string[] = [];
+    await settle(settlePage(alias), action({ type: 'click' }), {
+      ...TINY_DELAYS,
+      networkIdleTimeoutMs: 2000,
+    });
+    expect(alias).toContain('wls:load:2000');
+  });
+
+  it('does not wait for page load after form actions', async () => {
     const log: string[] = [];
     await settle(settlePage(log), action({ type: 'fill', value: 'x' }), TINY_DELAYS);
     await settle(settlePage(log), action({ type: 'key', value: 'Tab' }), TINY_DELAYS);

@@ -66,6 +66,8 @@ export class AnalysisService {
       llmBatchTimeoutMs: 300_000,
       authConfig,
       authPauseTimeoutMs: this.env.REPLAY_AUTH_TIMEOUT_MS,
+      replayLoadWaitMs: this.env.REPLAY_LOAD_WAIT_MS,
+      replayPauseScale: this.env.REPLAY_PAUSE_SCALE,
       onEvent: (event) => this.onAnalyzeEvent(sessionId, event),
     });
 

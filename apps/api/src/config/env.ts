@@ -33,6 +33,14 @@ export const envSchema = z
     PLAYWRIGHT_HEADLESS: z.stringbool().default(false),
     /** Pause-for-login timeout during replay (ADR 0005); default 10 minutes. */
     REPLAY_AUTH_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
+    /**
+     * Per-action page-load settle ceiling during replay (ms). The main
+     * replay-speed lever: lower it for snappy sites, raise it for heavy SPAs.
+     * Default 3000 (replay used to wait up to 15s for network idle).
+     */
+    REPLAY_LOAD_WAIT_MS: z.coerce.number().int().nonnegative().default(3000),
+    /** Multiplier on the fixed per-action settle pauses during replay (default 1). */
+    REPLAY_PAUSE_SCALE: z.coerce.number().positive().default(1),
   })
   .transform((env) => {
     const provider: 'gemini' | 'stub' =

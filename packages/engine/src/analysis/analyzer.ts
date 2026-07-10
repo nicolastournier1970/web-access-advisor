@@ -486,6 +486,12 @@ class AnalysisRun {
 
       await settle(page, action, {
         ...(this.deps.settleDelaysMs !== undefined ? { delaysMs: this.deps.settleDelaysMs } : {}),
+        ...(this.options.replayLoadWaitMs !== undefined
+          ? { loadWaitMs: this.options.replayLoadWaitMs }
+          : {}),
+        ...(this.options.replayPauseScale !== undefined
+          ? { pauseScale: this.options.replayPauseScale }
+          : {}),
       });
 
       let change: DomChangeDetails;

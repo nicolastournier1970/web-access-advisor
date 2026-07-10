@@ -24,10 +24,17 @@ const DEFAULT_PER_CANDIDATE_TIMEOUT_MS = 2000;
 const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
 /** Timeout for page.goto on navigate actions, like legacy. */
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
-/** Hard upper bound on the post-action networkidle wait. */
-const NETWORK_IDLE_BOUND_MS = 15_000;
-/** Bound on the domcontentloaded wait inside settle() after navigations. */
-const SETTLE_DOMCONTENT_TIMEOUT_MS = 10_000;
+/**
+ * Default ceiling for the post-navigate/click page-'load' wait. Replay used to
+ * wait for `networkidle`, which telemetry/websocket/polling-heavy sites never
+ * reach — so every navigate/click burned a full 15s. 'load' fires reliably and
+ * this ceiling is a safety net, not the common cost.
+ */
+const DEFAULT_LOAD_WAIT_MS = 3000;
+/** Hard cap on the configurable load wait. */
+const LOAD_WAIT_MAX_MS = 15_000;
+/** Default fixed "let the DOM/handlers react" pauses per action type (ms). */
+const DEFAULT_SETTLE_DELAYS = { navigate: 500, click: 350, form: 250, default: 150 } as const;
 /** Re-check interval while waiting for a candidate to match. */
 const POLL_INTERVAL_MS = 100;
 
@@ -103,10 +110,18 @@ export interface ExecuteActionOptions {
 
 /** Tunables for {@link settle}; tests inject tiny delays. */
 export interface SettleOptions {
-  /** networkidle wait after navigate/click; hard-capped at 15000. */
-  networkIdleTimeoutMs?: number;
+  /**
+   * Ceiling for the post-navigate/click page-'load' wait (default 3000, capped
+   * at 15000). The main replay-speed lever — lower for snappy sites, raise for
+   * heavy SPAs.
+   */
+  loadWaitMs?: number;
+  /** Multiplier on the default fixed per-action pauses (default 1). Ignored per-key when delaysMs sets that key. */
+  pauseScale?: number;
   /** Override the fixed per-action-type waits (ms). */
   delaysMs?: Partial<Record<'navigate' | 'click' | 'form' | 'default', number>>;
+  /** @deprecated back-compat alias for {@link loadWaitMs}. */
+  networkIdleTimeoutMs?: number;
 }
 
 /**
@@ -213,21 +228,27 @@ export async function executeAction(
  * Give the page time to react before state capture (port of the legacy
  * `waitForActionSettlement`): a fixed wait sized by action type (navigate
  * 1500 + domcontentloaded, click 1000, fill/select 750, others 500), then —
- * for navigate/click only — a networkidle wait bounded at 15s. Best-effort
- * by contract: every failure (including a page without waitForLoadState) is
- * swallowed and capture proceeds.
+ * for navigate/click only — a page-'load' wait bounded at `loadWaitMs`
+ * (default 3s). Best-effort by contract: every failure (including a page
+ * without waitForLoadState) is swallowed and capture proceeds.
  */
 export async function settle(
   page: ReplayPageActions,
   action: ActionV2,
   opts: SettleOptions = {},
 ): Promise<void> {
-  const delays = { navigate: 1500, click: 1000, form: 750, default: 500, ...opts.delaysMs };
+  const scale = opts.pauseScale ?? 1;
+  const delays = {
+    navigate: Math.round(DEFAULT_SETTLE_DELAYS.navigate * scale),
+    click: Math.round(DEFAULT_SETTLE_DELAYS.click * scale),
+    form: Math.round(DEFAULT_SETTLE_DELAYS.form * scale),
+    default: Math.round(DEFAULT_SETTLE_DELAYS.default * scale),
+    ...opts.delaysMs,
+  };
   try {
     switch (action.type) {
       case 'navigate':
         await sleep(delays.navigate);
-        await page.waitForLoadState?.('domcontentloaded', { timeout: SETTLE_DOMCONTENT_TIMEOUT_MS });
         break;
       case 'click':
         await sleep(delays.click);
@@ -240,11 +261,14 @@ export async function settle(
         await sleep(delays.default);
     }
     if (action.type === 'navigate' || action.type === 'click') {
-      const timeout = Math.min(opts.networkIdleTimeoutMs ?? NETWORK_IDLE_BOUND_MS, NETWORK_IDLE_BOUND_MS);
+      const bound = Math.min(
+        opts.loadWaitMs ?? opts.networkIdleTimeoutMs ?? DEFAULT_LOAD_WAIT_MS,
+        LOAD_WAIT_MAX_MS,
+      );
       try {
-        await page.waitForLoadState?.('networkidle', { timeout });
+        await page.waitForLoadState?.('load', { timeout: bound });
       } catch {
-        // Chatty pages never reach networkidle — not an error.
+        // Slow (or never-loading) pages: capture what we have rather than hang.
       }
     }
   } catch {

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Never-idle page — WAA Fixture Site</title>
+  <script>
+    // Deliberately keeps the network busy forever (like real telemetry /
+    // websocket / long-poll heavy portals): a request every 400ms means the
+    // page NEVER reaches Playwright's 'networkidle'. Used to demonstrate that
+    // replay settles on 'load' (fast) instead of hanging on network idle.
+    setInterval(() => {
+      fetch('index.html?ping=' + Date.now(), { cache: 'no-store' }).catch(() => {});
+    }, 400);
+  </script>
+</head>
+<body>
+  <h1>Busy page</h1>
+  <p>This page keeps a request loop running so the network is never idle.</p>
+  <button data-testid="busy-button" onclick="this.textContent = 'Clicked'">Do a thing</button>
+</body>
+</html>
