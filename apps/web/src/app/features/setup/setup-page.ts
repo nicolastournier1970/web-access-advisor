@@ -186,6 +186,17 @@ export class SetupPage implements OnInit {
     }
   }
 
+  /**
+   * Form submit entry point. The inputs use standalone [formControl]
+   * bindings, so no form-level directive (FormGroupDirective/NgForm) is
+   * attached to the <form> — (ngSubmit) never fires and nothing suppresses
+   * the NATIVE submit, which reloads the page. Intercept (submit) directly.
+   */
+  protected onSubmit(event: Event): void {
+    event.preventDefault();
+    void this.start();
+  }
+
   protected async start(): Promise<void> {
     if (this.urlControl.invalid) {
       this.urlControl.markAsTouched();
