@@ -61,6 +61,14 @@
   /* Typography */
   --font-sans: 'Open Sans', 'Segoe UI', Tahoma, sans-serif;
 
+  /* Font sizes floored at 14px (v3): nothing on the site renders smaller.
+     Overrides Tailwind's defaults (xs 12px, sm 14px) so text-xs → 14px and
+     text-sm → 15px everywhere, keeping a small hierarchy above the floor. */
+  --text-xs: 0.875rem; /* 14px */
+  --text-xs--line-height: 1.25rem; /* 20px */
+  --text-sm: 0.9375rem; /* 15px */
+  --text-sm--line-height: 1.375rem; /* 22px */
+
   /* Shadows */
   --shadow-card: 0px 1px 6px 0px rgba(0, 0, 0, 0.1);
   --shadow-dropdown: 0px 1px 6px 0px rgba(8, 45, 70, 0.15);

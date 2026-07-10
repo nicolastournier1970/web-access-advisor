@@ -27,7 +27,7 @@ let uid = 0;
     <button
       #trigger
       type="button"
-      class="inline-flex size-5 items-center justify-center rounded-full border border-blueberry-300 text-[11px] font-bold leading-none text-blueberry-700 hover:bg-blueberry-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blueberry-600"
+      class="inline-flex size-6 items-center justify-center rounded-full border border-blueberry-300 text-xs font-bold leading-none text-blueberry-700 hover:bg-blueberry-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blueberry-600"
       [attr.aria-label]="label()"
       [attr.aria-expanded]="open()"
       [attr.aria-controls]="panelId"
