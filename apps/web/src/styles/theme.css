@@ -61,13 +61,23 @@
   /* Typography */
   --font-sans: 'Open Sans', 'Segoe UI', Tahoma, sans-serif;
 
-  /* Font sizes floored at 14px (v3): nothing on the site renders smaller.
-     Overrides Tailwind's defaults (xs 12px, sm 14px) so text-xs → 14px and
-     text-sm → 15px everywhere, keeping a small hierarchy above the floor. */
-  --text-xs: 0.875rem; /* 14px */
+  /* Font scale shifted up one step for readability, floored at 14px (v3).
+     Each size is ~2-4px larger than Tailwind's default; the workhorse body
+     size (text-sm) jumps 14 → 16px, which lifts most of the UI. */
+  --text-xs: 0.875rem; /* 14px  (Tailwind 12) — minimum, meta/badges */
   --text-xs--line-height: 1.25rem; /* 20px */
-  --text-sm: 0.9375rem; /* 15px */
-  --text-sm--line-height: 1.375rem; /* 22px */
+  --text-sm: 1rem; /* 16px  (Tailwind 14) — dominant body/UI text */
+  --text-sm--line-height: 1.5rem; /* 24px */
+  --text-base: 1.125rem; /* 18px  (Tailwind 16) */
+  --text-base--line-height: 1.6875rem; /* 27px */
+  --text-lg: 1.25rem; /* 20px  (Tailwind 18) */
+  --text-lg--line-height: 1.75rem; /* 28px */
+  --text-xl: 1.5rem; /* 24px  (Tailwind 20) */
+  --text-xl--line-height: 2rem; /* 32px */
+  --text-2xl: 1.75rem; /* 28px  (Tailwind 24) — page titles */
+  --text-2xl--line-height: 2.25rem; /* 36px */
+  --text-3xl: 2.125rem; /* 34px  (Tailwind 30) */
+  --text-3xl--line-height: 2.5rem; /* 40px */
 
   /* Shadows */
   --shadow-card: 0px 1px 6px 0px rgba(0, 0, 0, 0.1);
