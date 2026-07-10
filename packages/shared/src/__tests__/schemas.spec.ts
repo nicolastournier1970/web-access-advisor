@@ -39,19 +39,29 @@ describe('recordingV1Schema (legacy files)', () => {
   );
 
   it.skipIf(!existsSync(snapshotsDir))('parses every recording.json under snapshots/', () => {
+    // The live snapshots dir is user data: it can hold v1 (legacy) AND v2
+    // (new recorder) files, or be empty. Route each file by its discriminator.
     const sessions = readdirSync(snapshotsDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => path.join(snapshotsDir, d.name, 'recording.json'))
       .filter((p) => existsSync(p));
-    expect(sessions.length).toBeGreaterThan(0);
     for (const file of sessions) {
-      const result = recordingV1Schema.safeParse(readJson(file));
+      const raw = readJson(file) as { formatVersion?: unknown };
+      const schema = raw.formatVersion === 2 ? recordingV2Schema : recordingV1Schema;
+      const result = schema.safeParse(raw);
       expect(result.success, `${file}: ${result.success ? '' : result.error.message}`).toBe(true);
     }
   });
 
-  it('rejects files that carry formatVersion (those are v2)', () => {
-    const v1 = readJson(path.join(goldenSession, 'recording.json'));
+  it('rejects objects that carry formatVersion (those are v2)', () => {
+    // Fixture-free: a schema-valid v1 shape gains formatVersion → must fail.
+    const v1 = {
+      sessionId: 's_v1',
+      url: 'https://example.test/',
+      startTime: '2025-08-20T02:20:41.024Z',
+      actions: [{ type: 'navigate', step: 1, timestamp: '2025-08-20T02:20:41.398Z', url: 'https://example.test/' }],
+    };
+    expect(recordingV1Schema.safeParse(v1).success).toBe(true);
     expect(recordingV1Schema.safeParse({ ...v1, formatVersion: 2 }).success).toBe(false);
   });
 });
@@ -117,11 +127,11 @@ describe('recordingV2Schema', () => {
 
 describe('sessionManifestSchema (legacy files)', () => {
   it.skipIf(!existsSync(snapshotsDir))('parses every manifest.json under snapshots/', () => {
+    // User data: sessions can be deleted via the UI, so zero manifests is legal.
     const manifests = readdirSync(snapshotsDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => path.join(snapshotsDir, d.name, 'manifest.json'))
       .filter((p) => existsSync(p));
-    expect(manifests.length).toBeGreaterThan(0);
     for (const file of manifests) {
       const result = sessionManifestSchema.safeParse(readJson(file));
       expect(result.success, `${file}: ${result.success ? '' : result.error.message}`).toBe(true);
