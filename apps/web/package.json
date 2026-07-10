@@ -1,6 +1,6 @@
 {
   "name": "@waa/web",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Web Access Advisor Angular frontend (docs/rewrite-plan.md §4)",
   "private": true,
   "scripts": {
@@ -19,7 +19,7 @@
     "@angular/forms": "^22.0.6",
     "@angular/platform-browser": "^22.0.6",
     "@angular/router": "^22.0.6",
-    "@waa/shared": "^2.0.0",
+    "@waa/shared": "^3.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zod": "^4.0.0"

@@ -1,6 +1,6 @@
 {
   "name": "@waa/cli",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Web Access Advisor command-line interface over @waa/core: single-page analyze, recording replay, session listing",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@waa/core": "^2.0.0",
-    "@waa/shared": "^2.0.0",
+    "@waa/core": "^3.0.0",
+    "@waa/shared": "^3.0.0",
     "zod": "^4.0.0"
   }
 }

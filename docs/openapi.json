@@ -489,7 +489,7 @@
   "info": {
     "title": "Web Access Advisor API",
     "description": "Accessibility recording/replay/analysis API. Realtime updates stream over SSE at GET /api/sessions/{id}/events (ADR 0003).",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "contact": {}
   },
   "tags": [],

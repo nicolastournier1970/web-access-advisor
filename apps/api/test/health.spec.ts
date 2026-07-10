@@ -21,7 +21,7 @@ describe('GET /api/health', () => {
     const res = await request(app.getHttpServer()).get('/api/health').expect(200);
     const health = healthResponseSchema.parse(res.body);
     expect(health.status).toBe('ok');
-    expect(health.version).toBe('2.0.0');
+    expect(health.version).toBe('3.0.0');
     expect(health.uptimeSeconds).toBeGreaterThan(0);
     // 'gemini' when the developer's real environment carries GEMINI_API_KEY.
     expect(['gemini', 'stub']).toContain(health.llmProvider);

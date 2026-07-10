@@ -1,6 +1,6 @@
 {
   "name": "@waa/shared",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Web Access Advisor shared contracts: zod schemas for the recording format, session manifest, API DTOs and SSE events",
   "private": true,
   "type": "module",

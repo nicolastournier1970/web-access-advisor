@@ -1,6 +1,6 @@
 {
   "name": "@waa/core",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Web Access Advisor engine: Playwright recording, replay with auth checkpoints, snapshot capture, axe + LLM accessibility analysis",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",
     "@google/generative-ai": "^0.24.1",
-    "@waa/shared": "^2.0.0",
+    "@waa/shared": "^3.0.0",
     "playwright": "^1.53.0",
     "undici": "^7.16.0",
     "zod": "^4.0.0"

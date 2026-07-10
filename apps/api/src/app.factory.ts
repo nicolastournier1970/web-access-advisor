@@ -48,7 +48,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       .setDescription(
         'Accessibility recording/replay/analysis API. Realtime updates stream over SSE at GET /api/sessions/{id}/events (ADR 0003).',
       )
-      .setVersion('2.0.0')
+      .setVersion('3.0.0')
       .build(),
   );
   SwaggerModule.setup('api/docs', app, cleanupOpenApiDoc(document));
