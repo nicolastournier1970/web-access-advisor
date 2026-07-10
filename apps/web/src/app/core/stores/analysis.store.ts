@@ -78,6 +78,7 @@ export class AnalysisStore {
   private readonly authValidatingState = signal(false);
   private readonly authFailedReasonState = signal<string | null>(null);
   private readonly completedState = signal(false);
+  private readonly warningsState = signal<string[]>([]);
   private readonly resultState = signal<AnalysisResult | null>(null);
   private readonly errorState = signal<string | null>(null);
   private readonly sessionStatusState = signal<SessionStatus | null>(null);
@@ -97,6 +98,8 @@ export class AnalysisStore {
   readonly authFailedReason = this.authFailedReasonState.asReadonly();
   /** Set by analysis.complete — the page navigates to results on this. */
   readonly completed = this.completedState.asReadonly();
+  /** Warnings carried by analysis.complete (AI-skipped detection, v1 parity). */
+  readonly warnings = this.warningsState.asReadonly();
   readonly result = this.resultState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly sessionStatus = this.sessionStatusState.asReadonly();
@@ -202,6 +205,7 @@ export class AnalysisStore {
     this.authValidatingState.set(false);
     this.authFailedReasonState.set(null);
     this.completedState.set(false);
+    this.warningsState.set([]);
     this.resultState.set(null);
     this.errorState.set(null);
     this.sessionStatusState.set(null);
@@ -224,6 +228,7 @@ export class AnalysisStore {
       case 'analysis.complete':
         this.phaseState.set('completed');
         if (event.snapshotCount !== undefined) this.snapshotCountState.set(event.snapshotCount);
+        this.warningsState.set(event.warnings);
         this.completedState.set(true);
         this.runningState.set(false);
         this.announceBoardPhase('done');

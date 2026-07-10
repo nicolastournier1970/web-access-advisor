@@ -30,6 +30,7 @@ import { ButtonDirective } from '../../shared/ui/button.directive';
 import { CardComponent } from '../../shared/ui/card.component';
 import { BadgeComponent } from '../../shared/ui/badge.component';
 import { SpinnerComponent } from '../../shared/ui/spinner.component';
+import { PhaseBoardComponent, idlePhaseBoard } from '../../shared/ui/phase-board.component';
 
 /** v1 rule (URLInput.tsx): prepend https:// when no protocol was typed. */
 export function normalizeUrl(input: string): string {
@@ -64,11 +65,15 @@ type StorageMatch = FindStorageStateResponse['matches'][number];
     ButtonDirective,
     CardComponent,
     BadgeComponent,
+    PhaseBoardComponent,
     SpinnerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SetupPage implements OnInit {
+  /** v1 rendered ThreePhaseStatus in every mode; setup shows the idle board. */
+  protected readonly idleBoard = idlePhaseBoard();
+
   private readonly api = inject(ApiClient);
   private readonly recording = inject(RecordingStore);
   private readonly router = inject(Router);

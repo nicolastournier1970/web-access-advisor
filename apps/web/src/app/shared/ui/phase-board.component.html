@@ -1,0 +1,150 @@
+<!-- v1 ThreePhaseStatus card layout: centered icon above an uppercase heading,
+     then message + details lines. SVGs ported verbatim from v1. -->
+@for (phase of phases(); track phase.key) {
+  <div
+    [class]="cardClasses(phase)"
+    [attr.data-phase]="phase.key"
+    [attr.data-state]="phase.status"
+  >
+    <div class="mb-1">
+      <!-- Status icon above the heading -->
+      <div class="mb-2 flex justify-center">
+        @switch (phase.status) {
+          @case ('active') {
+            @switch (phase.key) {
+              @case ('recording') {
+                <!-- v1 filled record dot, gently pulsing -->
+                <svg
+                  class="h-5 w-5 flex-shrink-0 animate-pulse"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="8" />
+                  <circle cx="12" cy="12" r="3" fill="white" />
+                </svg>
+              }
+              @case ('replay') {
+                <!-- The signature v1 counter-rotating double spin -->
+                <div class="animate-spin-reverse" data-testid="spin-reverse">
+                  <svg
+                    class="h-5 w-5 flex-shrink-0 animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </div>
+              }
+              @case ('ai') {
+                <!-- v1 lightning bolt with the soft slow pulse -->
+                <svg
+                  class="ai-pulse h-5 w-5 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+              }
+            }
+          }
+          @case ('completed') {
+            <svg
+              class="h-5 w-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          }
+          @case ('error') {
+            <svg
+              class="h-5 w-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          }
+          @case ('skipped') {
+            <svg
+              class="h-5 w-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          }
+          @default {
+            <svg
+              class="h-5 w-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" stroke-width="2" />
+              <path d="M8 12h8" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          }
+        }
+      </div>
+
+      <div class="text-center">
+        <h3 class="mb-1 text-base font-semibold uppercase tracking-wide">
+          {{ heading(phase.key) }}
+          @if (phase.status === 'completed') {
+            <span aria-hidden="true">✓</span><span class="sr-only">complete</span>
+          }
+        </h3>
+      </div>
+    </div>
+
+    <p class="mb-1 text-center text-sm font-medium">{{ phase.message }}</p>
+
+    @if (phase.details) {
+      <p class="text-center text-sm opacity-80">{{ phase.details }}</p>
+    }
+
+    @if (phase.error) {
+      <div class="status-error mt-2 rounded p-1 text-sm">
+        <strong>Error:</strong> {{ phase.error }}
+      </div>
+    }
+  </div>
+}

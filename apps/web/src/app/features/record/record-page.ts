@@ -22,6 +22,7 @@ import {
 } from '../../core/stores/recording.store';
 import { ApiError } from '../../core/api/api-client';
 import { ToastService } from '../../shared/ui/toast.service';
+import { PhaseBoardComponent, idlePhaseBoard, type PhaseBoardItem } from '../../shared/ui/phase-board.component';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 import { CardComponent } from '../../shared/ui/card.component';
 import { SpinnerComponent } from '../../shared/ui/spinner.component';
@@ -39,12 +40,29 @@ const CONNECTION_LABELS = {
 @Component({
   selector: 'waa-record-page',
   templateUrl: './record-page.html',
-  imports: [ButtonDirective, CardComponent, SpinnerComponent, ActionFeedComponent, AuthBannerComponent],
+  imports: [ButtonDirective, CardComponent, SpinnerComponent, ActionFeedComponent, AuthBannerComponent, PhaseBoardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RecordPage implements OnInit {
   /** Route param via withComponentInputBinding. */
   readonly id = input.required<string>();
+
+  /** v1 ThreePhaseStatus: recording active with the live action count. */
+  protected readonly boardPhases = computed<PhaseBoardItem[]>(() => {
+    const board = idlePhaseBoard();
+    const phase = this.store.phase();
+    if (phase === 'starting') {
+      board[0] = { key: 'recording', status: 'active', message: 'Opening browser...' };
+    } else if (phase === 'recording' || phase === 'stopping') {
+      board[0] = {
+        key: 'recording',
+        status: 'active',
+        message: 'Recording in progress...',
+        details: `${this.store.actions().length} actions captured`,
+      };
+    }
+    return board;
+  });
 
   protected readonly store = inject(RecordingStore);
   private readonly router = inject(Router);

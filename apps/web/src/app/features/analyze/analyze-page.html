@@ -6,6 +6,9 @@
   }
 </p>
 
+<!-- Persistent three-phase board (v1 ThreePhaseStatus), always at the top -->
+<waa-phase-board class="mt-4" [phases]="phases()" />
+
 @if (loading()) {
   <p class="mt-6 flex items-center gap-2 text-sm text-muted">
     <waa-spinner size="sm" />
@@ -84,59 +87,36 @@
     </waa-card>
   }
 
-  <!-- Three-phase board -->
-  @if (store.running() || store.completed() || store.error()) {
-    <section class="mt-6" aria-labelledby="progress-heading">
-      <h2 id="progress-heading" class="sr-only">Analysis progress</h2>
-
-      <div class="grid gap-3 sm:grid-cols-3" data-testid="phase-board">
-        @for (card of phases(); track card.key) {
-          <div [class]="phaseClasses(card)" [attr.data-phase]="card.key" [attr.data-state]="card.state">
-            <h3 class="text-sm font-semibold uppercase tracking-wide">
-              {{ card.label }}
-              @if (card.state === 'completed') {
-                <span aria-hidden="true">✓</span>
-                <span class="sr-only">complete</span>
-              }
-            </h3>
-            <p class="mt-1 text-sm font-medium">{{ card.message }}</p>
-            @if (card.details) {
-              <p class="mt-0.5 text-sm opacity-80">{{ card.details }}</p>
-            }
-          </div>
+  <!-- Live message + counters (the board itself is pinned above) -->
+  @if (store.running()) {
+    <section class="mt-4" aria-label="Live analysis progress">
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted">
+        <span class="flex items-center gap-2">
+          <waa-spinner size="sm" />
+          <span data-testid="progress-message">{{ store.message() || 'Working…' }}</span>
+        </span>
+        @if (store.snapshotCount() !== null) {
+          <span class="tabular-nums">{{ store.snapshotCount() }} snapshots</span>
+        }
+        @if (store.batchTotal() !== null) {
+          <span class="tabular-nums">Batch {{ store.batchCurrent() ?? 0 }}/{{ store.batchTotal() }}</span>
         }
       </div>
 
-      <!-- Live message + counters -->
-      @if (store.running()) {
-        <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted">
-          <span class="flex items-center gap-2">
-            <waa-spinner size="sm" />
-            <span data-testid="progress-message">{{ store.message() || 'Working…' }}</span>
-          </span>
-          @if (store.snapshotCount() !== null) {
-            <span class="tabular-nums">{{ store.snapshotCount() }} snapshots</span>
-          }
-          @if (store.batchTotal() !== null) {
-            <span class="tabular-nums">Batch {{ store.batchCurrent() ?? 0 }}/{{ store.batchTotal() }}</span>
-          }
-        </div>
-
-        @if (progress(); as bar) {
+      @if (progress(); as bar) {
+        <div
+          class="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-3"
+          role="progressbar"
+          [attr.aria-label]="bar.label"
+          aria-valuemin="0"
+          [attr.aria-valuemax]="bar.max"
+          [attr.aria-valuenow]="bar.value"
+        >
           <div
-            class="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-3"
-            role="progressbar"
-            [attr.aria-label]="bar.label"
-            aria-valuemin="0"
-            [attr.aria-valuemax]="bar.max"
-            [attr.aria-valuenow]="bar.value"
-          >
-            <div
-              class="h-full rounded-full bg-blueberry-600 transition-all"
-              [style.width.%]="(100 * bar.value) / bar.max"
-            ></div>
-          </div>
-        }
+            class="h-full rounded-full bg-blueberry-600 transition-all"
+            [style.width.%]="(100 * bar.value) / bar.max"
+          ></div>
+        </div>
       }
     </section>
   }

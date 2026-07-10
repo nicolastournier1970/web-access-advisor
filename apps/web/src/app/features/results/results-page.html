@@ -5,6 +5,8 @@
   </p>
 </div>
 
+<waa-phase-board class="mt-4" [phases]="boardPhases()" />
+
 @switch (state()) {
   @case ('loading') {
     <p class="mt-6 flex items-center gap-2 text-sm text-muted">

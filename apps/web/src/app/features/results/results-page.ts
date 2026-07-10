@@ -24,6 +24,7 @@ import { ButtonDirective } from '../../shared/ui/button.directive';
 import { CardComponent } from '../../shared/ui/card.component';
 import { SpinnerComponent } from '../../shared/ui/spinner.component';
 import { FindingCardComponent } from './finding-card.component';
+import { PhaseBoardComponent, aiSkippedFromWarnings, idlePhaseBoard, type PhaseBoardItem } from '../../shared/ui/phase-board.component';
 import {
   SEVERITIES,
   buildResultsView,
@@ -41,12 +42,37 @@ const LIVE_STATUSES = new Set(['replaying', 'awaiting-auth', 'analyzing']);
 @Component({
   selector: 'waa-results-page',
   templateUrl: './results-page.html',
-  imports: [RouterLink, ButtonDirective, CardComponent, SpinnerComponent, FindingCardComponent],
+  imports: [RouterLink, ButtonDirective, CardComponent, SpinnerComponent, FindingCardComponent, PhaseBoardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ResultsPage implements OnInit {
   /** Route param via withComponentInputBinding. */
   readonly id = input.required<string>();
+
+  /** v1 ThreePhaseStatus, pinned above the report: all phases complete. */
+  protected readonly boardPhases = computed<PhaseBoardItem[]>(() => {
+    const result = this.result();
+    const board = idlePhaseBoard();
+    if (!result) return board;
+    const actionCount = result.manifest.actionOutcomes?.length;
+    board[0] = {
+      key: 'recording',
+      status: 'completed',
+      message: 'Recording complete',
+      ...(actionCount !== undefined ? { details: `${actionCount} actions captured` } : {}),
+    };
+    board[1] = {
+      key: 'replay',
+      status: 'completed',
+      message: 'Replay complete',
+      details: `${result.snapshotCount} snapshots captured`,
+    };
+    const aiRan = result.analysis !== undefined && !aiSkippedFromWarnings(result.warnings ?? []);
+    board[2] = aiRan
+      ? { key: 'ai', status: 'completed', message: 'Analysis complete', details: 'Report generated' }
+      : { key: 'ai', status: 'skipped', message: 'AI analysis skipped', details: 'Axe results only' };
+    return board;
+  });
 
   private readonly store = inject(AnalysisStore);
   private readonly api = inject(ApiClient);

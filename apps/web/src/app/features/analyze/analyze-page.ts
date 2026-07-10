@@ -23,24 +23,13 @@ import { ToastService } from '../../shared/ui/toast.service';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 import { CardComponent } from '../../shared/ui/card.component';
 import { SpinnerComponent } from '../../shared/ui/spinner.component';
+import {
+  PhaseBoardComponent,
+  aiSkippedFromWarnings,
+  idlePhaseBoard,
+  type PhaseBoardItem,
+} from '../../shared/ui/phase-board.component';
 import { AuthPauseBannerComponent } from './auth-pause-banner.component';
-
-type PhaseCardState = 'pending' | 'active' | 'completed' | 'error';
-
-interface PhaseCard {
-  key: 'recording' | 'replay' | 'ai';
-  label: string;
-  state: PhaseCardState;
-  message: string;
-  details: string;
-}
-
-const STATE_CLASSES: Record<PhaseCardState, string> = {
-  pending: 'status-pending',
-  active: 'status-active',
-  completed: 'status-completed',
-  error: 'status-error',
-};
 
 /** Sessions in these states have a live analysis to re-attach to. */
 const LIVE_STATUSES = new Set(['replaying', 'awaiting-auth', 'analyzing']);
@@ -53,6 +42,7 @@ const LIVE_STATUSES = new Set(['replaying', 'awaiting-auth', 'analyzing']);
     ButtonDirective,
     CardComponent,
     SpinnerComponent,
+    PhaseBoardComponent,
     AuthPauseBannerComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -84,7 +74,7 @@ export class AnalyzePage implements OnInit, OnDestroy {
   );
 
   /** Three-phase board (v1 ThreePhaseStatus mapping — see boardPhaseFor). */
-  protected readonly phases = computed<PhaseCard[]>(() => {
+  protected readonly phases = computed<PhaseBoardItem[]>(() => {
     const phase = this.store.phase();
     const error = this.store.error();
     const board = phase ? boardPhaseFor(phase) : null;
@@ -92,42 +82,28 @@ export class AnalyzePage implements OnInit, OnDestroy {
     const snapshots = this.store.snapshotCount();
     const actionCount = this.summary()?.actionCount;
 
-    const cards: PhaseCard[] = [
-      {
-        key: 'recording',
-        label: 'Recording',
-        state: 'completed',
-        message: 'Recording complete',
-        details: actionCount !== undefined ? `${actionCount} actions captured` : '',
-      },
-      {
-        key: 'replay',
-        label: 'Replay & capture',
-        state: 'pending',
-        message: 'Ready to replay',
-        details: 'Automated replay with accessibility scans',
-      },
-      {
-        key: 'ai',
-        label: 'AI analysis',
-        state: 'pending',
-        message: 'Waiting for replay',
-        details: 'AI-powered accessibility insights',
-      },
-    ];
-    const [, replay, ai] = cards;
+    // On this page the recording is always done; replay/ai start from v1 idle copy.
+    const cards = idlePhaseBoard();
+    const [recording, replay, ai] = cards;
+    recording.status = 'completed';
+    recording.message = 'Recording complete';
+    recording.details = actionCount !== undefined ? `${actionCount} actions captured` : '';
     const snapshotDetails = snapshots !== null ? `${snapshots} snapshots captured` : '';
 
     if (board === 'replay') {
-      replay.state = 'active';
-      replay.message = paused ? 'Paused — waiting for sign-in' : this.store.message() || 'Replaying interactions…';
+      replay.status = 'active';
+      replay.message = paused
+        ? 'Paused — waiting for sign-in'
+        : this.store.message() || 'Replaying interactions...';
       replay.details = snapshotDetails || 'Processing interactions';
+      ai.message = 'Waiting for replay';
+      ai.details = 'Analysis will begin after replay completes';
     } else if (board === 'ai') {
-      replay.state = 'completed';
+      replay.status = 'completed';
       replay.message = 'Replay complete';
       replay.details = snapshotDetails;
-      ai.state = 'active';
-      ai.message = this.store.message() || 'Analyzing with AI…';
+      ai.status = 'active';
+      ai.message = this.store.message() || 'AI analysis in progress...';
       const batchCurrent = this.store.batchCurrent();
       const batchTotal = this.store.batchTotal();
       ai.details =
@@ -135,23 +111,35 @@ export class AnalyzePage implements OnInit, OnDestroy {
           ? `Processing batch ${batchCurrent}/${batchTotal}`
           : 'Analyzing accessibility data';
     } else if (board === 'done') {
-      replay.state = 'completed';
+      replay.status = 'completed';
       replay.message = 'Replay complete';
       replay.details = snapshotDetails;
-      ai.state = 'completed';
-      ai.message = 'Analysis complete';
-      ai.details = 'Report generated';
+      if (snapshots === 0) {
+        ai.status = 'skipped';
+        ai.message = 'Analysis skipped';
+        ai.details = 'No snapshots to analyze';
+      } else if (aiSkippedFromWarnings(this.store.warnings())) {
+        ai.status = 'skipped';
+        ai.message = 'AI analysis skipped';
+        ai.details = 'AI provider not configured';
+      } else {
+        ai.status = 'completed';
+        ai.message = 'Analysis complete';
+        ai.details = 'Report generated';
+      }
     }
 
     if (error) {
       const errored = board === 'ai' || board === 'done' ? ai : replay;
       if (errored === ai) {
-        replay.state = 'completed';
+        replay.status = 'completed';
         replay.message = 'Replay complete';
+        replay.details = snapshotDetails;
       }
-      errored.state = 'error';
+      errored.status = 'error';
       errored.message = errored === ai ? 'AI analysis failed' : 'Replay failed';
       errored.details = '';
+      errored.error = error;
     }
     return cards;
   });
@@ -279,9 +267,5 @@ export class AnalyzePage implements OnInit, OnDestroy {
     if (value === 'separate' || value === 'include' || value === 'ignore') {
       this.staticSectionMode.set(value);
     }
-  }
-
-  protected phaseClasses(card: PhaseCard): string {
-    return `rounded-lg border p-4 transition-all ${STATE_CLASSES[card.state]}`;
   }
 }

@@ -2,8 +2,10 @@
  * Provider-neutral prompt builders. Ports the essence of the legacy Gemini
  * component-analysis prompt (packages/core/src/gemini.ts) onto the batched
  * LlmBatchRequest shape: role framing, the JSON contract mirroring
- * llmAnalysisSchema, component-naming rules, before/after DOM awareness,
- * WCAG URL guidance, static-section handling and progressive-summary context.
+ * llmAnalysisSchema (components + mandatory enhancedAxeViolations enrichment),
+ * component-naming rules, verbatim relevantHtml / code-not-prose correctedCode
+ * requirements, before/after DOM awareness, WCAG URL guidance, static-section
+ * handling and progressive-summary context.
  */
 import type { LlmAnalysis } from '@waa/shared';
 import type { LlmBatchRequest } from '../engine-types.js';
@@ -43,15 +45,28 @@ const JSON_CONTRACT = `{
       "componentName": "Axe-style violation title following the naming rules above",
       "issue": "Clear description of the issue - wrap HTML element names in backticks (e.g. \`main\`, \`h1\`, \`button\`)",
       "explanation": "Why this is a problem for screen reader users - wrap HTML element names in backticks",
-      "relevantHtml": "ONLY the specific problematic element(s) - never <html>, <body> or unrelated parents",
-      "correctedCode": "The same element(s) fixed with proper accessibility attributes",
-      "codeChangeSummary": "Brief summary of the fix (e.g. 'Added aria-label to button')",
+      "relevantHtml": "EXACT HTML copied verbatim from the DOM snapshot - ONLY the specific problematic element(s), never <html>, <body> or unrelated parent containers",
+      "correctedCode": "Complete corrected HTML markup for the exact same element(s) shown in relevantHtml - actual code, never a prose description",
+      "codeChangeSummary": "Brief summary of the fix (e.g. 'Added aria-label to button', 'Changed div to semantic heading')",
       "impact": "critical|serious|moderate|minor",
       "wcagRule": "e.g. 4.1.2 Name, Role, Value",
       "wcagUrl": "https://www.w3.org/WAI/WCAG21/Understanding/name-role-value.html",
       "selector": "CSS selector uniquely identifying the problematic element (for missing elements, where it should be added)",
       "step": 1,
       "url": "URL of the snapshot the issue was found in"
+    }
+  ],
+  "enhancedAxeViolations": [
+    {
+      "id": "axe rule id from the input report (e.g. landmark-one-main, label, region)",
+      "explanation": "User-impact focused explanation of how this violation affects people using assistive technology",
+      "recommendation": "Clear, actionable guidance on how to fix this violation - end with 'Reference: [helpUrl from the violation]'",
+      "wcag": {
+        "guideline": "Guideline number only, no 'WCAG' prefix (WRONG: 'WCAG 2.4.6', CORRECT: '2.4.6')",
+        "level": "A|AA|AAA",
+        "title": "Official WCAG guideline title (e.g. Bypass Blocks)",
+        "url": "https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html"
+      }
     }
   ],
   "recommendations": ["actionable recommendation strings"],
@@ -66,7 +81,10 @@ ${JSON_CONTRACT}
 - Plain ASCII text only; no emoji or special Unicode symbols.
 - ALWAYS wrap HTML element names in backticks inside issue/explanation text.
 - Set "step" and "url" on every component to the snapshot the issue was observed in.
-- relevantHtml/correctedCode must show the minimal offending element and its minimal fix.
+- relevantHtml must be copied EXACTLY from the DOM snapshot (verbatim, minimal offending element only). For missing-element issues, show the container where the element should be added (e.g. for a missing \`main\` landmark, the wrapper that should become/contain \`main\`; for a missing \`h1\`, the section where it belongs).
+- correctedCode must be complete, working HTML for the exact same element(s) shown in relevantHtml with the minimal fix applied - never a prose description of the change.
+- MANDATORY AXE ENHANCEMENT: enhance EVERY axe violation present in the input reports as one entry in "enhancedAxeViolations" (if the input lists 5 distinct violation ids, output 5 entries). Explanations must be user-impact focused, recommendations actionable and ending with 'Reference: [helpUrl]', and each entry must carry the complete wcag object (guideline number WITHOUT the 'WCAG' prefix - the UI adds it).
+- Deduplicate across arrays: do NOT add a "components" entry for an issue already covered by an "enhancedAxeViolations" entry; use "components" for issues your semantic analysis finds beyond the axe report.
 - "score" is an overall 0-100 accessibility score for the analyzed content.
 - Deduplicate: report each distinct issue once even if it appears in several snapshots (attribute it to the first step it appears in).
 - Prioritize: critical (blocks task completion), serious (significantly impairs), moderate (creates barriers), minor (polish).`;

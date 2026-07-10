@@ -57,6 +57,7 @@ describe('buildComponentAnalysisPrompt', () => {
       '"wcagRule"',
       '"wcagUrl"',
       '"selector"',
+      '"enhancedAxeViolations"',
       '"recommendations"',
       '"score"',
     ]) {
@@ -64,6 +65,30 @@ describe('buildComponentAnalysisPrompt', () => {
     }
     expect(prompt).toMatch(/NEVER use "Ensure\.\.\." phrasing/);
     expect(prompt).toContain('https://www.w3.org/WAI/WCAG21/Understanding/');
+  });
+
+  it('demands verbatim relevantHtml and code-not-prose correctedCode', () => {
+    const prompt = buildComponentAnalysisPrompt(request());
+    expect(prompt).toMatch(/copied verbatim from the DOM snapshot/i);
+    expect(prompt).toMatch(/copied EXACTLY from the DOM snapshot/i);
+    expect(prompt).toMatch(/never a prose description/i);
+    expect(prompt).toMatch(/never <html>, <body>/i);
+    // Missing-element guidance: where to anchor relevantHtml when the fix adds an element.
+    expect(prompt).toMatch(/show the container where the element should be added/i);
+  });
+
+  it('mandates enhancing every axe violation with wcag object and helpUrl reference', () => {
+    const prompt = buildComponentAnalysisPrompt(request());
+    expect(prompt).toMatch(/MANDATORY AXE ENHANCEMENT/);
+    expect(prompt).toMatch(/EVERY axe violation/i);
+    expect(prompt).toContain("'Reference: [helpUrl]'");
+    expect(prompt).toMatch(/WITHOUT the 'WCAG' prefix/i);
+    // The wcag object fields the manifest-builder merge consumes.
+    for (const field of ['"guideline"', '"level"', '"title"', '"url"']) {
+      expect(prompt).toContain(field);
+    }
+    // Cross-array dedup carried over from v1's two-phase instructions.
+    expect(prompt).toMatch(/already covered by an "enhancedAxeViolations" entry/);
   });
 
   it('adapts to each staticSectionMode', () => {
