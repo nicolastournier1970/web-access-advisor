@@ -81,7 +81,7 @@ const SEVERITY_BADGES: Record<Impact, BadgeKind> = {
             <div>
               <h4 class="text-sm font-semibold text-ink">Offending code</h4>
               <pre
-                class="mt-1 overflow-x-auto rounded-md border border-danger/40 bg-danger-bg p-3 text-xs"
+                class="mt-1 overflow-x-auto rounded-md border border-danger/40 bg-danger-bg p-3 font-mono text-sm"
               ><code>{{ finding().offendingHtml }}</code></pre>
             </div>
           }
@@ -95,7 +95,7 @@ const SEVERITY_BADGES: Record<Impact, BadgeKind> = {
                   <li class="rounded-md border border-line bg-surface-1 p-3">
                     @if (node.html) {
                       <pre
-                        class="overflow-x-auto rounded-md border border-danger/40 bg-danger-bg p-3 text-xs"
+                        class="overflow-x-auto rounded-md border border-danger/40 bg-danger-bg p-3 font-mono text-sm"
                       ><code>{{ node.html }}</code></pre>
                     }
                     @if (node.selector) {
@@ -141,7 +141,7 @@ const SEVERITY_BADGES: Record<Impact, BadgeKind> = {
                 </p>
               }
               <pre
-                class="mt-1 overflow-x-auto rounded-md border border-success-accent/50 bg-success-bg p-3 text-xs"
+                class="mt-1 overflow-x-auto rounded-md border border-success-accent/50 bg-success-bg p-3 font-mono text-sm"
               ><code>{{ finding().correctedCode }}</code></pre>
             </div>
           }
