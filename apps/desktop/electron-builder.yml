@@ -57,6 +57,29 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
 
+# macOS (.dmg). No guaranteed system browser, so bundle Playwright Chromium
+# (run scripts/provision-bundled-chromium.mjs first — the mac dist script does).
+# Distribution needs an Apple Developer cert + notarization (the Apple equivalent
+# of the Windows signing cert — see Phase 7); unsigned builds run locally but
+# Gatekeeper warns. Must be BUILT on macOS.
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+  extraResources:
+    - from: playwright-browsers
+      to: playwright-browsers
+
+# Linux (.AppImage — portable, no install needed). Bundles Chromium too. No
+# signing required. Must be BUILT on Linux.
+linux:
+  target:
+    - AppImage
+  category: Development
+  extraResources:
+    - from: playwright-browsers
+      to: playwright-browsers
+
 # Auto-update feed (GitHub Releases, per the project decision). The releases
 # repo must be public for unattended updates (a private repo needs an embedded
 # token). Publishing + real signing are enabled in Phase 7.

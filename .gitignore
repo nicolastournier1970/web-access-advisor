@@ -15,6 +15,7 @@ dist-ssr
 # Electron packaging outputs (apps/desktop)
 staged
 release
+playwright-browsers
 
 # Editor directories and files
 .vscode/*

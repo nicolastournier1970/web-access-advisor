@@ -10,9 +10,12 @@
     "dev": "npm run build && node scripts/dev.mjs",
     "start": "npm run build && electron .",
     "stage": "node scripts/stage-server.mjs",
+    "provision:browsers": "node scripts/provision-bundled-chromium.mjs",
     "pack:dir": "npm run build && node scripts/stage-server.mjs && electron-builder --dir",
-    "dist": "npm run build && node scripts/stage-server.mjs && electron-builder",
-    "dist:publish": "npm run build && node scripts/stage-server.mjs && electron-builder --publish always"
+    "dist": "npm run build && node scripts/stage-server.mjs && electron-builder --win",
+    "dist:mac": "npm run build && node scripts/provision-bundled-chromium.mjs && node scripts/stage-server.mjs && electron-builder --mac",
+    "dist:linux": "npm run build && node scripts/provision-bundled-chromium.mjs && node scripts/stage-server.mjs && electron-builder --linux",
+    "dist:publish": "npm run build && node scripts/stage-server.mjs && electron-builder --win --publish always"
   },
   "dependencies": {
     "@waa/core": "^3.0.0",

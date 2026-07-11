@@ -17,6 +17,9 @@
     "desktop:live": "npm run dev -w apps/desktop",
     "desktop:app": "npm run build -w packages/shared -w packages/engine -w apps/api -w apps/web && npm run start -w apps/desktop",
     "desktop:pack": "npm run build && npm run pack:dir -w apps/desktop",
+    "desktop:installer": "npm run build && npm run dist -w apps/desktop",
+    "desktop:mac": "npm run build && npm run dist:mac -w apps/desktop",
+    "desktop:linux": "npm run build && npm run dist:linux -w apps/desktop",
     "parity": "node e2e/parity/compare-manifests.mjs",
     "fixture:serve": "node e2e/fixtures/serve.mjs",
     "postinstall": "playwright install chromium firefox"

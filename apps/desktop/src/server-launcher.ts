@@ -7,6 +7,7 @@
  */
 import { utilityProcess, type UtilityProcess } from 'electron';
 import http from 'node:http';
+import { existsSync } from 'node:fs';
 import { resolvePaths } from './paths';
 
 export interface ApiHandle {
@@ -31,7 +32,14 @@ async function resolveChannel(): Promise<string | undefined> {
 
 export async function launchApi(): Promise<ApiHandle> {
   const paths = resolvePaths();
+
+  // Browser strategy (cross-platform): drive a system Edge/Chrome via `channel`
+  // when one is installed (always true on Windows 11, often on mac/linux);
+  // otherwise fall back to the bundled Playwright Chromium the mac/linux
+  // installers ship. If neither exists the analysis surfaces a "no browser"
+  // error — the Windows installer never bundles one (system Edge is guaranteed).
   const channel = await resolveChannel();
+  const hasBundled = existsSync(paths.bundledBrowsersDir);
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -40,7 +48,11 @@ export async function launchApi(): Promise<ApiHandle> {
     SNAPSHOTS_DIR: paths.snapshotsDir,
     AUTH_DOMAINS_CONFIG: paths.authDomainsConfig,
     API_HOST: '127.0.0.1',
-    ...(channel !== undefined ? { WAA_BROWSER_CHANNEL: channel } : {}),
+    ...(channel !== undefined
+      ? { WAA_BROWSER_CHANNEL: channel }
+      : hasBundled
+        ? { PLAYWRIGHT_BROWSERS_PATH: paths.bundledBrowsersDir }
+        : {}),
   };
 
   const child = utilityProcess.fork(paths.apiEntry, [], { env, stdio: 'inherit' });

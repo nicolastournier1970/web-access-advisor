@@ -21,6 +21,12 @@ export interface ResolvedPaths {
   snapshotsDir: string;
   /** Auth-domains config shipped as a resource. */
   authDomainsConfig: string;
+  /**
+   * Bundled Playwright browsers dir (mac/linux installers ship one, since Edge/
+   * Chrome isn't guaranteed there). May not exist (Windows installer ships none —
+   * it drives system Edge/Chrome via channel); the launcher checks existence.
+   */
+  bundledBrowsersDir: string;
 }
 
 export function resolvePaths(): ResolvedPaths {
@@ -35,6 +41,7 @@ export function resolvePaths(): ResolvedPaths {
       userDataDir,
       snapshotsDir,
       authDomainsConfig: path.join(resources, 'config', 'auth-domains.json'),
+      bundledBrowsersDir: path.join(resources, 'playwright-browsers'),
     };
   }
 
@@ -46,5 +53,6 @@ export function resolvePaths(): ResolvedPaths {
     userDataDir,
     snapshotsDir,
     authDomainsConfig: path.join(repoRoot, 'config', 'auth-domains.json'),
+    bundledBrowsersDir: path.join(app.getAppPath(), 'playwright-browsers'),
   };
 }
