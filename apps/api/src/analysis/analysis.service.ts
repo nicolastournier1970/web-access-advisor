@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { analysisResultSchema } from '@waa/shared';
 import type { AnalysisResult, StartAnalysisRequest, StartAnalysisResponse } from '@waa/shared';
-import type { AnalyzeEvent, LlmProvider } from '@waa/core';
+import { LlmProviderConfigError, type AnalyzeEvent, type LlmProvider, type LlmProviderConfig } from '@waa/core';
 import { ENGINE, type EngineFacade } from '../engine/engine.module.js';
 import { ENV, type Env } from '../config/env.js';
 import { SessionStoreService } from '../sessions/session-store.service.js';
@@ -115,26 +115,49 @@ export class AnalysisService {
     return worker;
   }
 
+  /**
+   * Build the LLM provider for this run: the request override wins over the
+   * env-selected default. Per-provider key/model/base-url come from env (Phase 3
+   * layers persisted Settings on top). A missing paid-provider key surfaces as a
+   * 400 pointing the user at configuration.
+   */
   private resolveProvider(requested: StartAnalysisRequest['llmProvider']): LlmProvider | null {
     const choice = requested ?? this.env.LLM_PROVIDER;
-    switch (choice) {
-      case 'none':
-        return null;
-      case 'stub':
-        return new this.engine.StubProvider();
-      case 'gemini': {
-        if (!this.env.GEMINI_API_KEY) {
-          throw new BadRequestException('GEMINI_API_KEY is not configured; use llmProvider "stub" or "none"');
-        }
-        return new this.engine.GeminiProvider({
-          apiKey: this.env.GEMINI_API_KEY,
-          ...(this.env.GEMINI_MODEL !== undefined ? { model: this.env.GEMINI_MODEL } : {}),
-          ...(this.env.GEMINI_THINKING_BUDGET !== undefined
-            ? { thinkingBudget: this.env.GEMINI_THINKING_BUDGET }
-            : {}),
-          ...(this.env.HTTPS_PROXY !== undefined ? { proxyUrl: this.env.HTTPS_PROXY } : {}),
-        });
+    const proxy = this.env.HTTPS_PROXY;
+    const configByProvider: Record<string, LlmProviderConfig> = {
+      gemini: {
+        ...(this.env.GEMINI_API_KEY !== undefined ? { apiKey: this.env.GEMINI_API_KEY } : {}),
+        ...(this.env.GEMINI_MODEL !== undefined ? { model: this.env.GEMINI_MODEL } : {}),
+        ...(this.env.GEMINI_THINKING_BUDGET !== undefined
+          ? { thinkingBudget: this.env.GEMINI_THINKING_BUDGET }
+          : {}),
+        ...(proxy !== undefined ? { proxyUrl: proxy } : {}),
+      },
+      claude: {
+        ...(this.env.CLAUDE_API_KEY !== undefined ? { apiKey: this.env.CLAUDE_API_KEY } : {}),
+        ...(this.env.CLAUDE_MODEL !== undefined ? { model: this.env.CLAUDE_MODEL } : {}),
+        ...(proxy !== undefined ? { proxyUrl: proxy } : {}),
+      },
+      openai: {
+        ...(this.env.OPENAI_API_KEY !== undefined ? { apiKey: this.env.OPENAI_API_KEY } : {}),
+        ...(this.env.OPENAI_MODEL !== undefined ? { model: this.env.OPENAI_MODEL } : {}),
+        ...(this.env.OPENAI_BASE_URL !== undefined ? { baseUrl: this.env.OPENAI_BASE_URL } : {}),
+        ...(proxy !== undefined ? { proxyUrl: proxy } : {}),
+      },
+      ollama: {
+        ...(this.env.OLLAMA_MODEL !== undefined ? { model: this.env.OLLAMA_MODEL } : {}),
+        ...(this.env.OLLAMA_BASE_URL !== undefined ? { baseUrl: this.env.OLLAMA_BASE_URL } : {}),
+      },
+    };
+    try {
+      return this.engine.createLlmProvider(choice, configByProvider[choice] ?? {});
+    } catch (error) {
+      if (error instanceof LlmProviderConfigError) {
+        throw new BadRequestException(
+          `${error.message} Add a key in Settings, or use llmProvider "stub" or "none".`,
+        );
       }
+      throw error;
     }
   }
 

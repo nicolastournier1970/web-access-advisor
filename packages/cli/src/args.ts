@@ -4,11 +4,13 @@
  * user mistakes surface as {@link UsageError} (exit code 2).
  */
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { llmProviderChoiceSchema, type LlmProviderChoice } from '@waa/shared';
 import { ANALYZE_HELP, GENERAL_HELP, REPLAY_HELP, SESSIONS_HELP, type HelpTopic } from './help.js';
 import { UsageError } from './usage.js';
 
-export const LLM_CHOICES = ['gemini', 'stub', 'none'] as const;
-export type LlmChoice = (typeof LLM_CHOICES)[number];
+/** Provider choices for --llm, shared with the API/engine (single source of truth). */
+export const LLM_CHOICES = llmProviderChoiceSchema.options;
+export type LlmChoice = LlmProviderChoice;
 
 /** Default pause-for-login timeout: 10 minutes (mirrors the API default). */
 export const DEFAULT_AUTH_TIMEOUT_MS = 600_000;
