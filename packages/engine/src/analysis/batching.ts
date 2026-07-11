@@ -173,6 +173,8 @@ export interface RunLlmAnalysisOptions {
   timeoutMs: number;
   /** Invoked before each batch is sent (1-based `current`). */
   onBatch?: (current: number, total: number, flowType: FlowType) => void;
+  /** Invoked when a batch fails (it is skipped, the others still run). */
+  onBatchError?: (batchId: string, error: unknown) => void;
 }
 
 /**
@@ -182,7 +184,9 @@ export interface RunLlmAnalysisOptions {
  *    batch — see module header — and trimmed to its last 2000 chars);
  *  - each returned component is re-anchored to its step's URL via the batch's
  *    step→url map (fallback: the batch's first snapshot);
- *  - a failed batch is skipped (the others still run), matching legacy;
+ *  - a failed batch is skipped (the others still run), matching legacy — but
+ *    unlike legacy the failure is REPORTED via `onBatchError` so an empty
+ *    analysis always comes with a visible reason;
  *  - the batch analyses are merged via `provider.consolidate`.
  */
 export async function runLlmAnalysis(opts: RunLlmAnalysisOptions): Promise<LlmAnalysis> {
@@ -214,8 +218,11 @@ export async function runLlmAnalysis(opts: RunLlmAnalysisOptions): Promise<LlmAn
     let result: LlmAnalysis;
     try {
       result = await provider.analyzeBatch(request, timeoutMs);
-    } catch {
-      // Legacy behaviour: one failed batch never sinks the whole analysis.
+    } catch (error) {
+      // One failed batch never sinks the whole analysis, but it must not be
+      // silent either (a retired model once 404'd every batch and the run
+      // still reported success with score 100).
+      opts.onBatchError?.(batch.batchId, error);
       continue;
     }
 

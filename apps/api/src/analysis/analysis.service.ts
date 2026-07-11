@@ -128,6 +128,7 @@ export class AnalysisService {
         }
         return new this.engine.GeminiProvider({
           apiKey: this.env.GEMINI_API_KEY,
+          ...(this.env.GEMINI_MODEL !== undefined ? { model: this.env.GEMINI_MODEL } : {}),
           ...(this.env.HTTPS_PROXY !== undefined ? { proxyUrl: this.env.HTTPS_PROXY } : {}),
         });
       }

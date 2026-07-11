@@ -14,7 +14,7 @@ import { buildComponentAnalysisPrompt, buildConsolidationNote } from './prompts.
 export interface GeminiProviderOptions {
   /** Google AI Studio API key — never echoed into error messages. */
   apiKey: string;
-  /** Model id appended to the REST path; defaults to gemini-2.0-flash. */
+  /** Model id appended to the REST path; defaults to gemini-flash-latest. */
   model?: string;
   /** Forward proxy URL; when set, requests go through an undici ProxyAgent. */
   proxyUrl?: string;
@@ -23,7 +23,11 @@ export interface GeminiProviderOptions {
 }
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+// Rolling alias: always points at the current stable Flash model, so the
+// provider keeps working when Google retires a pinned version (gemini-2.0-flash
+// died this way in 2026 — every batch 404'd silently). Pin via the `model`
+// option / GEMINI_MODEL env when reproducibility matters more than uptime.
+const DEFAULT_MODEL = 'gemini-flash-latest';
 /** Max response-body characters quoted in HTTP error messages. */
 const ERROR_BODY_CHARS = 500;
 

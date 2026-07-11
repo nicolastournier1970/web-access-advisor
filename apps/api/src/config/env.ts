@@ -17,6 +17,8 @@ export const envSchema = z
     API_PORT: z.coerce.number().int().positive().default(3002),
     NODE_ENV: z.string().default('development'),
     GEMINI_API_KEY: z.string().optional(),
+    /** Pins the Gemini model id; unset → the provider's rolling default (gemini-flash-latest). */
+    GEMINI_MODEL: z.string().optional(),
     /**
      * When unset, derived from GEMINI_API_KEY in the transform below:
      * key present → 'gemini', otherwise → 'stub'.

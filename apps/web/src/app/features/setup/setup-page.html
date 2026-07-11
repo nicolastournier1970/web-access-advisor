@@ -48,23 +48,22 @@
       </div>
 
       @if (storageMatches().length > 0) {
-        <div class="rounded-md border status-completed px-4 py-3">
-          <label class="flex items-start gap-3">
-            <input
-              type="checkbox"
-              class="mt-0.5 size-4 accent-blueberry-600"
-              [checked]="reuseSavedLogin()"
-              (change)="reuseSavedLogin.set($any($event.target).checked)"
-            />
-            <span class="text-sm">
-              Reuse saved login from
-              <strong>{{ storageMatches()[0].savedAt | date: 'medium' }}</strong>
-              <span class="block text-xs opacity-80">
-                A previous session on this site saved a login. It will be validated before use.
-              </span>
+        <!-- The label IS the box: clicks anywhere in it (padding included) toggle. -->
+        <label class="flex cursor-pointer items-start gap-3 rounded-md border status-completed px-4 py-3">
+          <input
+            type="checkbox"
+            class="mt-0.5 size-4 accent-blueberry-600"
+            [checked]="reuseSavedLogin()"
+            (change)="reuseSavedLogin.set($any($event.target).checked)"
+          />
+          <span class="text-sm">
+            Reuse saved login from
+            <strong>{{ storageMatches()[0].savedAt | date: 'medium' }}</strong>
+            <span class="block text-xs opacity-80">
+              A previous session on this site saved a login. It will be validated before use.
             </span>
-          </label>
-        </div>
+          </span>
+        </label>
       }
     </div>
   </waa-card>
@@ -113,8 +112,9 @@
         @if (selectedBrowser(); as selected) {
           <div class="mt-4 border-t border-line pt-4">
             <label
-              class="flex items-start gap-3"
+              class="flex cursor-pointer items-start gap-3"
               [class.opacity-50]="!selected.profilePath"
+              [class.cursor-not-allowed]="!selected.profilePath"
             >
               <input
                 type="checkbox"

@@ -43,6 +43,7 @@ Parsed once at bootstrap by the zod schema in [`apps/api/src/config/env.ts`](../
 |---|---|---|
 | `API_PORT` | `3002` | API listen port |
 | `GEMINI_API_KEY` | — | Enables the Gemini provider |
+| `GEMINI_MODEL` | — (provider default: `gemini-flash-latest`) | Pins a specific Gemini model id; the default is a rolling alias so Google model retirements don't break analysis |
 | `LLM_PROVIDER` | derived: key present → `gemini`, else `stub` | Explicit override (`gemini`\|`stub`) |
 | `HTTPS_PROXY` | — | Outbound proxy for the Gemini client (per-client undici dispatcher, [ADR 0006](./adr/0006-llm-provider-abstraction.md)) |
 | `SNAPSHOTS_DIR` | `./snapshots` | Session storage root |

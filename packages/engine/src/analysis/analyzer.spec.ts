@@ -344,6 +344,29 @@ describe('runAnalysis (fakes)', () => {
     await expect(control.continueAuth()).resolves.toEqual({ ok: false, reason: 'not-paused' });
   });
 
+  it('closes the browser before the AI phase (no dead window during LLM analysis)', async () => {
+    const recording = makeRecording([act(1, 'navigate', { url: APP_URL })]);
+    const stub = new StubProvider();
+    let browserClosedWhenAiRan: boolean | null = null;
+    let h!: ReturnType<typeof makeHarness>;
+    h = makeHarness(recording, {
+      llmProvider: {
+        name: 'close-probe',
+        analyzeBatch: (request, timeoutMs) => {
+          browserClosedWhenAiRan = h.context.closed && h.browser.closed;
+          return stub.analyzeBatch(request, timeoutMs);
+        },
+        consolidate: (batches, sessionUrl) => stub.consolidate(batches, sessionUrl),
+      },
+    });
+
+    const result = await runAnalysis(h.options, h.deps).result;
+
+    expect(result.success).toBe(true);
+    expect(result.analysis).toBeDefined();
+    expect(browserClosedWhenAiRan).toBe(true);
+  });
+
   it('pauses on a login wall; failed validation stays paused; success resumes and saves storageState', async () => {
     const recording = makeRecording([act(1, 'navigate', { url: APP_URL })]);
     const h = makeHarness(recording, { llmProvider: new StubProvider() });

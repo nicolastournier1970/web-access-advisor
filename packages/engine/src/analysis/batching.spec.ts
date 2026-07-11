@@ -319,6 +319,29 @@ describe('runLlmAnalysis', () => {
     expect(sent[0]!.nodes).toHaveLength(5);
   });
 
+  it('reports failed batches through onBatchError', async () => {
+    const provider = new CapturingProvider([
+      { summary: 'first', throws: true },
+      { summary: 'second' },
+    ]);
+    const failing = batchOf(1, 'https://a/1');
+    const surviving = batchOf(2, 'https://a/2');
+    const failures: Array<[string, unknown]> = [];
+
+    await runLlmAnalysis({
+      batches: [failing, surviving],
+      provider,
+      sessionUrl: SESSION_URL,
+      staticSectionMode: 'ignore',
+      timeoutMs: 1000,
+      onBatchError: (batchId, error) => failures.push([batchId, error]),
+    });
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]![0]).toBe(failing.batchId);
+    expect(failures[0]![1]).toBeInstanceOf(Error);
+  });
+
   it('reports batch progress through onBatch', async () => {
     const provider = new CapturingProvider([{ summary: 'a' }, { summary: 'b' }]);
     const calls: Array<[number, number, string]> = [];

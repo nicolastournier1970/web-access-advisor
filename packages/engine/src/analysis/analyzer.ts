@@ -394,6 +394,11 @@ class AnalysisRun {
       }
 
       await this.replayLoop(snapshots, outcomesByStep);
+      // Replay + snapshots are done — nothing after this touches the page, so
+      // close the (possibly headed) browser NOW instead of leaving a dead
+      // window open through the whole AI/report phase. Idempotent with the
+      // closeAll() in the finally block.
+      await this.closeAll();
       return await this.finish(snapshots, [...outcomesByStep.values()]);
     } catch (error) {
       return await this.failureResult(error, snapshots, [...outcomesByStep.values()]);
@@ -566,6 +571,7 @@ class AnalysisRun {
       try {
         const grouped = groupSnapshotsForAnalysis(snapshots, manifest.stepDetails);
         const batches = createBatches(grouped);
+        let failedBatches = 0;
         analysis = await runLlmAnalysis({
           batches,
           provider: options.llmProvider,
@@ -578,7 +584,16 @@ class AnalysisRun {
               `Analyzing batch ${batchCurrent}/${batchTotal}: ${flowType}`,
               { batchCurrent, batchTotal, snapshotCount: snapshots.length },
             ),
+          onBatchError: (batchId, error) => {
+            failedBatches += 1;
+            this.warnings.push(`AI analysis batch ${batchId} failed: ${describeError(error)}`);
+          },
         });
+        if (batches.length > 0 && failedBatches === batches.length) {
+          this.warnings.push(
+            `AI analysis produced no results: all ${batches.length} batch(es) failed. Findings below are from automated checks only.`,
+          );
+        }
       } catch (error) {
         this.warnings.push(`AI analysis failed: ${describeError(error)}`);
       }

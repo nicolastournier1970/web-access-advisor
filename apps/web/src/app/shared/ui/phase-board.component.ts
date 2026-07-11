@@ -50,7 +50,8 @@ export function idlePhaseBoard(): PhaseBoardItem[] {
  * v1 skipped-detection (ThreePhaseStatus.tsx 'completed' branch): warnings
  * that mean the AI stage did not actually run on an otherwise-complete
  * analysis. 'AI analysis failed' is the v2 engine's warning when the LLM call
- * throws but the report still completes (axe-only).
+ * throws but the report still completes (axe-only); 'AI analysis produced no
+ * results' is its warning when every LLM batch failed individually.
  */
 export function aiSkippedFromWarnings(warnings: readonly string[]): boolean {
   return warnings.some(
@@ -58,7 +59,8 @@ export function aiSkippedFromWarnings(warnings: readonly string[]): boolean {
       warning.includes('Gemini') ||
       warning.includes('AI analysis unavailable') ||
       warning.includes('API key not configured') ||
-      warning.includes('AI analysis failed'),
+      warning.includes('AI analysis failed') ||
+      warning.includes('AI analysis produced no results'),
   );
 }
 

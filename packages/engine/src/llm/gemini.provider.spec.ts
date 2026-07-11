@@ -54,7 +54,7 @@ describe('GeminiProvider.analyzeBatch', () => {
     expect(calls).toHaveLength(1);
     const call = calls[0]!;
     expect(call.url).toBe(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`,
     );
     expect(call.init.method).toBe('POST');
     expect(call.init.dispatcher).toBeUndefined();
