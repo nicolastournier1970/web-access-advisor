@@ -8,13 +8,14 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  GeminiProvider,
-  StubProvider,
+  createLlmProvider,
+  LlmProviderConfigError,
   loadAuthDomainsConfig,
   runAnalysis,
   sessionPaths,
   type AnalyzeEvent,
   type LlmProvider,
+  type LlmProviderConfig,
 } from '@waa/core';
 import type { RecordingV2 } from '@waa/shared';
 import type { LlmChoice } from './args.js';
@@ -27,30 +28,54 @@ export const AUTH_POLL_INTERVAL_MS = 5_000;
 /** User-editable auth-domain patterns; missing file → engine defaults. */
 const AUTH_DOMAINS_CONFIG_FILE = 'config/auth-domains.json';
 
-/** Map an --llm choice to a provider; gemini requires GEMINI_API_KEY. */
+/** Read a non-empty env var, or undefined. */
+function envVar(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const value = env[name];
+  return value !== undefined && value !== '' ? value : undefined;
+}
+
+/**
+ * Map an --llm choice to a provider via the engine factory; paid providers read
+ * their key/model/base-url from the matching env vars. A missing key surfaces as
+ * a UsageError (exit code 2).
+ */
 export function resolveProvider(
   choice: LlmChoice,
   env: NodeJS.ProcessEnv = process.env,
 ): LlmProvider | null {
-  switch (choice) {
-    case 'none':
-      return null;
-    case 'stub':
-      return new StubProvider();
-    case 'gemini': {
-      const apiKey = env['GEMINI_API_KEY'];
-      if (apiKey === undefined || apiKey === '') {
-        throw new UsageError(
-          '--llm gemini requires the GEMINI_API_KEY environment variable (create a key in ' +
-            'Google AI Studio and export it), or use --llm stub | none.',
-        );
-      }
-      const proxyUrl = env['HTTPS_PROXY'];
-      return new GeminiProvider({
-        apiKey,
-        ...(proxyUrl !== undefined && proxyUrl !== '' ? { proxyUrl } : {}),
-      });
+  const proxyUrl = envVar(env, 'HTTPS_PROXY');
+  const configByProvider: Record<string, LlmProviderConfig> = {
+    gemini: {
+      ...(envVar(env, 'GEMINI_API_KEY') !== undefined ? { apiKey: envVar(env, 'GEMINI_API_KEY') } : {}),
+      ...(envVar(env, 'GEMINI_MODEL') !== undefined ? { model: envVar(env, 'GEMINI_MODEL') } : {}),
+      ...(proxyUrl !== undefined ? { proxyUrl } : {}),
+    },
+    claude: {
+      ...(envVar(env, 'CLAUDE_API_KEY') !== undefined ? { apiKey: envVar(env, 'CLAUDE_API_KEY') } : {}),
+      ...(envVar(env, 'CLAUDE_MODEL') !== undefined ? { model: envVar(env, 'CLAUDE_MODEL') } : {}),
+      ...(proxyUrl !== undefined ? { proxyUrl } : {}),
+    },
+    openai: {
+      ...(envVar(env, 'OPENAI_API_KEY') !== undefined ? { apiKey: envVar(env, 'OPENAI_API_KEY') } : {}),
+      ...(envVar(env, 'OPENAI_MODEL') !== undefined ? { model: envVar(env, 'OPENAI_MODEL') } : {}),
+      ...(envVar(env, 'OPENAI_BASE_URL') !== undefined ? { baseUrl: envVar(env, 'OPENAI_BASE_URL') } : {}),
+      ...(proxyUrl !== undefined ? { proxyUrl } : {}),
+    },
+    ollama: {
+      ...(envVar(env, 'OLLAMA_MODEL') !== undefined ? { model: envVar(env, 'OLLAMA_MODEL') } : {}),
+      ...(envVar(env, 'OLLAMA_BASE_URL') !== undefined ? { baseUrl: envVar(env, 'OLLAMA_BASE_URL') } : {}),
+    },
+  };
+  try {
+    return createLlmProvider(choice, configByProvider[choice] ?? {});
+  } catch (error) {
+    if (error instanceof LlmProviderConfigError) {
+      throw new UsageError(
+        `--llm ${choice} requires an API key — set ${choice.toUpperCase()}_API_KEY, ` +
+          'or use --llm stub | none.',
+      );
     }
+    throw error;
   }
 }
 
