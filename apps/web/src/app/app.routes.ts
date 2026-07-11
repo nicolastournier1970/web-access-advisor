@@ -14,6 +14,11 @@ export const routes: Routes = [
     title: 'Web Access Advisor — Sessions',
   },
   {
+    path: 'settings',
+    loadComponent: () => import('./features/settings/settings-page').then((m) => m.SettingsPage),
+    title: 'Web Access Advisor — Settings',
+  },
+  {
     path: 'sessions/:id/record',
     loadComponent: () => import('./features/record/record-page').then((m) => m.RecordPage),
     title: 'Web Access Advisor — Recording',

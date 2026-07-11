@@ -1,0 +1,14 @@
+# Dev-only auto-update feed. electron-updater reads this when
+# forceDevUpdateConfig is on (or the app is run unpacked), so the
+# checking → available → download → downloaded flow can be exercised against a
+# LOCAL static server before any real host/cert exists:
+#
+#   1. build two versions, bumping package.json version between them
+#   2. serve the release/ dir:  npx http-server apps/desktop/release -p 8080
+#   3. run the older build with WAA_DISABLE_AUTOUPDATE unset and app.isPackaged
+#      forced, publisher check bypassed in dev
+#
+# Production uses the GitHub Releases feed from electron-builder.yml instead.
+provider: generic
+url: http://localhost:8080/
+updaterCacheDirName: waa-updater

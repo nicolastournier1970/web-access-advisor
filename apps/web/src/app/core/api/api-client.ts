@@ -36,6 +36,8 @@ import {
   startRecordingResponseSchema,
   stopRecordingResponseSchema,
   storageStateStatusResponseSchema,
+  settingsResponseSchema,
+  updateSettingsRequestSchema,
   type AnalysisResult,
   type CancelReplayAuthResponse,
   type ContinueReplayAuthResponse,
@@ -52,6 +54,7 @@ import {
   type StartRecordingResponse,
   type StopRecordingResponse,
   type StorageStateStatusResponse,
+  type SettingsResponse,
 } from '@waa/shared';
 
 /** Request payloads are typed as schema INPUT (defaults applied server-side). */
@@ -59,6 +62,7 @@ export type StartRecordingRequestInput = z.input<typeof startRecordingRequestSch
 export type StartAuthSegmentRequestInput = z.input<typeof startAuthSegmentRequestSchema>;
 export type ProfileProbeRequestInput = z.input<typeof profileProbeRequestSchema>;
 export type StartAnalysisRequestInput = z.input<typeof startAnalysisRequestSchema>;
+export type UpdateSettingsRequestInput = z.input<typeof updateSettingsRequestSchema>;
 
 /** Injectable fetch so unit tests can provide a fake. */
 export const FETCH = new InjectionToken<typeof fetch>('FETCH', {
@@ -211,11 +215,21 @@ export class ApiClient {
     );
   }
 
+  // ---- Settings (runtime LLM provider + keys) ----
+
+  getSettings(): Promise<SettingsResponse> {
+    return this.request(settingsResponseSchema, 'GET', '/settings');
+  }
+
+  updateSettings(body: UpdateSettingsRequestInput): Promise<SettingsResponse> {
+    return this.request(settingsResponseSchema, 'PUT', '/settings', body);
+  }
+
   // ---- Plumbing ----
 
   private async request<T>(
     schema: z.ZodType<T>,
-    method: 'GET' | 'POST' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
     body?: Record<string, unknown>,
   ): Promise<T> {

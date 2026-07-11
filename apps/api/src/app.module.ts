@@ -8,6 +8,7 @@ import { RecordingModule } from './recording/recording.module.js';
 import { AnalysisModule } from './analysis/analysis.module.js';
 import { BrowsersModule } from './browsers/browsers.module.js';
 import { StorageStateModule } from './storage-state/storage-state.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { StorageStateModule } from './storage-state/storage-state.module.js';
     AnalysisModule,
     BrowsersModule,
     StorageStateModule,
+    SettingsModule,
   ],
   controllers: [HealthController],
 })

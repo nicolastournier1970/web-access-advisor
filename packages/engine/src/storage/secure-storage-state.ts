@@ -314,6 +314,18 @@ function resolveProvider(options: SecureStorageStateOptions): StorageStateKeyPro
   return defaultProvider;
 }
 
+/**
+ * The AES-256 key provider that a secure write/read would use given `options`
+ * (explicit keyProvider → test override → the default DPAPI/plain file-backed
+ * one). Exported so the generic secure-json helpers share this app's single key
+ * infrastructure and its test seams.
+ */
+export function resolveKeyProvider(
+  options: SecureStorageStateOptions = {},
+): StorageStateKeyProvider {
+  return resolveProvider(options);
+}
+
 // ---------------------------------------------------------------------------
 // Read / write
 // ---------------------------------------------------------------------------

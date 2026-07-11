@@ -22,6 +22,7 @@ import { ENV, type Env } from '../config/env.js';
 import { SessionStoreService } from '../sessions/session-store.service.js';
 import { SessionWorkerRegistry, type SessionWorker } from '../sessions/session-worker.registry.js';
 import { SessionEventsService } from '../events/session-events.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 @Injectable()
 export class AnalysisService {
@@ -31,6 +32,7 @@ export class AnalysisService {
     private readonly store: SessionStoreService,
     private readonly workers: SessionWorkerRegistry,
     private readonly events: SessionEventsService,
+    private readonly settings: SettingsService,
   ) {}
 
   async start(sessionId: string, request: StartAnalysisRequest): Promise<StartAnalysisResponse> {
@@ -50,7 +52,7 @@ export class AnalysisService {
     const authConfig = await this.engine.loadAuthDomainsConfig(
       path.resolve(this.env.AUTH_DOMAINS_CONFIG),
     );
-    const llmProvider = this.resolveProvider(request.llmProvider);
+    const llmProvider = await this.resolveProvider(request.llmProvider);
 
     const control = this.engine.runAnalysis({
       sessionId,
@@ -59,6 +61,9 @@ export class AnalysisService {
       browserType: summary.browserType === 'firefox' ? 'firefox' : 'chromium',
       ...(summary.browserName !== undefined ? { browserName: summary.browserName } : {}),
       useProfile: summary.useProfile ?? false,
+      ...(this.env.WAA_BROWSER_CHANNEL !== undefined
+        ? { browserChannel: this.env.WAA_BROWSER_CHANNEL }
+        : {}),
       headless: this.env.PLAYWRIGHT_HEADLESS,
       captureScreenshots: request.captureScreenshots,
       staticSectionMode: request.staticSectionMode,
@@ -116,41 +121,27 @@ export class AnalysisService {
   }
 
   /**
-   * Build the LLM provider for this run: the request override wins over the
-   * env-selected default. Per-provider key/model/base-url come from env (Phase 3
-   * layers persisted Settings on top). A missing paid-provider key surfaces as a
-   * 400 pointing the user at configuration.
+   * Build the LLM provider for this run. Provider selection: request override →
+   * persisted Settings → env default. Per-provider key/model/base-url come from
+   * the settings vault (persisted wins over env), plus env-only proxy/thinking.
+   * A missing paid-provider key surfaces as a 400 pointing the user at Settings.
    */
-  private resolveProvider(requested: StartAnalysisRequest['llmProvider']): LlmProvider | null {
-    const choice = requested ?? this.env.LLM_PROVIDER;
-    const proxy = this.env.HTTPS_PROXY;
-    const configByProvider: Record<string, LlmProviderConfig> = {
-      gemini: {
-        ...(this.env.GEMINI_API_KEY !== undefined ? { apiKey: this.env.GEMINI_API_KEY } : {}),
-        ...(this.env.GEMINI_MODEL !== undefined ? { model: this.env.GEMINI_MODEL } : {}),
-        ...(this.env.GEMINI_THINKING_BUDGET !== undefined
-          ? { thinkingBudget: this.env.GEMINI_THINKING_BUDGET }
-          : {}),
-        ...(proxy !== undefined ? { proxyUrl: proxy } : {}),
-      },
-      claude: {
-        ...(this.env.CLAUDE_API_KEY !== undefined ? { apiKey: this.env.CLAUDE_API_KEY } : {}),
-        ...(this.env.CLAUDE_MODEL !== undefined ? { model: this.env.CLAUDE_MODEL } : {}),
-        ...(proxy !== undefined ? { proxyUrl: proxy } : {}),
-      },
-      openai: {
-        ...(this.env.OPENAI_API_KEY !== undefined ? { apiKey: this.env.OPENAI_API_KEY } : {}),
-        ...(this.env.OPENAI_MODEL !== undefined ? { model: this.env.OPENAI_MODEL } : {}),
-        ...(this.env.OPENAI_BASE_URL !== undefined ? { baseUrl: this.env.OPENAI_BASE_URL } : {}),
-        ...(proxy !== undefined ? { proxyUrl: proxy } : {}),
-      },
-      ollama: {
-        ...(this.env.OLLAMA_MODEL !== undefined ? { model: this.env.OLLAMA_MODEL } : {}),
-        ...(this.env.OLLAMA_BASE_URL !== undefined ? { baseUrl: this.env.OLLAMA_BASE_URL } : {}),
-      },
+  private async resolveProvider(
+    requested: StartAnalysisRequest['llmProvider'],
+  ): Promise<LlmProvider | null> {
+    // 'none' short-circuits (disable AI) without touching provider config.
+    if (requested === 'none') return null;
+    const choice = await this.settings.effectiveProvider(requested);
+    const base = await this.settings.resolveConfig(choice);
+    const config: LlmProviderConfig = {
+      ...base,
+      ...(this.env.HTTPS_PROXY !== undefined ? { proxyUrl: this.env.HTTPS_PROXY } : {}),
+      ...(choice === 'gemini' && this.env.GEMINI_THINKING_BUDGET !== undefined
+        ? { thinkingBudget: this.env.GEMINI_THINKING_BUDGET }
+        : {}),
     };
     try {
-      return this.engine.createLlmProvider(choice, configByProvider[choice] ?? {});
+      return this.engine.createLlmProvider(choice, config);
     } catch (error) {
       if (error instanceof LlmProviderConfigError) {
         throw new BadRequestException(

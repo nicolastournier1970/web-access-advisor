@@ -73,6 +73,9 @@ export class RecordingService {
         browserType: request.browserType,
         ...(request.browserName !== undefined ? { browserName: request.browserName } : {}),
         useProfile: request.useProfile,
+        ...(this.env.WAA_BROWSER_CHANNEL !== undefined
+          ? { browserChannel: this.env.WAA_BROWSER_CHANNEL }
+          : {}),
         headless: this.env.PLAYWRIGHT_HEADLESS,
         sessionDir,
         ...(reuseStorageStatePath !== undefined ? { reuseStorageStatePath } : {}),

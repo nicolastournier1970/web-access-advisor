@@ -1,0 +1,48 @@
+# Desktop release: build the Electron installer and publish it to the
+# GitHub Releases auto-update feed. Fires on a version tag (v*).
+#
+# Phase 7 prerequisites (until then this produces an UNSIGNED installer that
+# installs but cannot self-update):
+#   - fill in publish.owner / publish.repo in apps/desktop/electron-builder.yml
+#   - add signing secrets so build/sign.js signs (WAA_SIGN_TOOL, WAA_SIGN_ARGS);
+#     without them the build still succeeds, unsigned.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write # create the GitHub Release / upload assets
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - name: Build all workspaces (shared/engine/api/web/cli)
+        run: npm run build
+
+      - name: Stage the API into the desktop app
+        working-directory: apps/desktop
+        run: node scripts/stage-server.mjs
+
+      - name: Build + publish the installer
+        working-directory: apps/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Set these repo secrets to produce a SIGNED, self-updating release
+          # (Phase 7). Absent → build/sign.js no-ops and the installer is unsigned.
+          WAA_SIGN_TOOL: ${{ secrets.WAA_SIGN_TOOL }}
+          WAA_SIGN_ARGS: ${{ secrets.WAA_SIGN_ARGS }}
+        run: npm run dist:publish

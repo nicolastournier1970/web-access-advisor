@@ -1,0 +1,23 @@
+{
+  "name": "@waa/desktop",
+  "version": "3.0.0",
+  "description": "Web Access Advisor desktop shell (Electron) — forks the API, serves the SPA same-origin, and drives system browsers",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "pack:dir": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:publish": "npm run build && electron-builder --publish always"
+  },
+  "dependencies": {
+    "@waa/core": "^3.0.0",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@vercel/nft": "^0.27.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

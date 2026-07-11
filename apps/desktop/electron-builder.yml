@@ -1,0 +1,63 @@
+appId: com.webaccessadvisor.desktop
+productName: Web Access Advisor
+copyright: Copyright © 2026
+
+directories:
+  output: release
+  buildResources: build
+
+# app.asar contents: the desktop dist + a staged, pruned copy of the API /
+# engine / shared dist + their production node_modules (materialized by
+# scripts/stage-server.mjs — hoisted @waa/* symlinks become real dirs, ESM
+# package.json "type":"module" preserved).
+files:
+  - dist/**/*
+  - package.json
+  - from: staged
+    to: .
+    filter:
+      - '**/*'
+
+# Playwright drives system Edge/Chrome via `channel`, so NO browser binaries are
+# bundled (the ~300MB saving). The Angular build ships UNPACKED (asar can't
+# sendFile ranges cleanly) and is served same-origin by the API from resources/web.
+extraResources:
+  - from: ../web/dist/web/browser
+    to: web
+  - from: ../../config/auth-domains.json
+    to: config/auth-domains.json
+
+asar: true
+# playwright/playwright-core spawn a node driver from disk — must be unpacked.
+asarUnpack:
+  - '**/node_modules/playwright/**'
+  - '**/node_modules/playwright-core/**'
+
+win:
+  target:
+    - nsis
+  # Custom sign hook: signs via a cloud-HSM/Trusted-Signing tool WHEN
+  # WAA_SIGN_TOOL is set (Phase 7 + a cert), otherwise no-ops → unsigned build.
+  sign: build/sign.js
+  # publisherName is pinned in Phase 7 to keep electron-updater's publisher check
+  # stable across cert renewals.
+  rfc3161TimeStampServer: http://timestamp.digicert.com
+  signingHashAlgorithms:
+    - sha256
+
+nsis:
+  # Per-user install: silent auto-updates without UAC, and matches the
+  # CurrentUser-scoped DPAPI key at ~/.waa.
+  perMachine: false
+  oneClick: true
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# Auto-update feed (GitHub Releases, per the project decision). The releases
+# repo must be public for unattended updates (a private repo needs an embedded
+# token). Publishing + real signing are enabled in Phase 7.
+publish:
+  provider: github
+  owner: REPLACE_WITH_GITHUB_OWNER
+  repo: REPLACE_WITH_GITHUB_REPO

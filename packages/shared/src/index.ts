@@ -11,6 +11,7 @@ export * from './llm/provider.schema.js';
 export * from './api/sessions-api.schema.js';
 export * from './api/recording-api.schema.js';
 export * from './api/analysis-api.schema.js';
+export * from './api/settings-api.schema.js';
 export * from './api/browsers-api.schema.js';
 export * from './api/storage-state-api.schema.js';
 export * from './api/error-api.schema.js';

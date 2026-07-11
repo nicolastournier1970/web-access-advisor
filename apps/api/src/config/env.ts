@@ -7,7 +7,7 @@
  */
 import { Global, Module } from '@nestjs/common';
 import { z } from 'zod';
-import { llmProviderIdSchema, type LlmProviderId } from '@waa/shared';
+import { chromiumChannelSchema, llmProviderIdSchema, type LlmProviderId } from '@waa/shared';
 
 export const envSchema = z
   .object({
@@ -42,6 +42,19 @@ export const envSchema = z
      * auto-selected (its reachability can't be cheaply probed at boot).
      */
     LLM_PROVIDER: llmProviderIdSchema.optional(),
+    /**
+     * Drive a system-installed Chromium (msedge/chrome) via Playwright channel
+     * instead of the bundled binary. Set by the packaged Electron app (which
+     * ships no bundled browser); unset in dev → bundled Chromium.
+     */
+    WAA_BROWSER_CHANNEL: chromiumChannelSchema.optional(),
+    /**
+     * Writable per-user data directory injected by the packaged Electron app
+     * (Electron's userData). When set, the settings vault lives here and the
+     * API's settings PUT is disabled (Electron main owns writes via IPC). Unset
+     * in dev → the vault falls back to ~/.waa.
+     */
+    WAA_USERDATA_DIR: z.string().optional(),
     HTTPS_PROXY: z.string().optional(),
     SNAPSHOTS_DIR: z.string().default('./snapshots'),
     AUTH_DOMAINS_CONFIG: z.string().default('./config/auth-domains.json'),

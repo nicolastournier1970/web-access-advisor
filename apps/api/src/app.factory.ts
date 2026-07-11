@@ -4,10 +4,12 @@
  * Nest app must always be constructed from tsc output).
  */
 import 'reflect-metadata';
+import path from 'node:path';
 import type { INestApplication, LogLevel } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
+import express from 'express';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/http-exception.filter.js';
 
@@ -54,4 +56,27 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   SwaggerModule.setup('api/docs', app, cleanupOpenApiDoc(document));
 
   return app;
+}
+
+/**
+ * Serve the built Angular SPA same-origin over http (the packaged desktop app
+ * only). LOAD-BEARING: the shipped SPA uses relative `/api` fetch + native
+ * EventSource with no base-URL seam, so it must be served from the SAME origin
+ * as the API — never file://. `browserDir` is apps/web/dist/web/browser.
+ *
+ * Registered as Express middleware (before the global-prefixed Nest router):
+ * static assets are served directly; any non-/api GET falls back to index.html
+ * for client-side routing; /api requests pass through to the Nest controllers.
+ */
+export function configureStatic(app: INestApplication, browserDir: string): void {
+  const server = app.getHttpAdapter().getInstance() as express.Express;
+  const indexHtml = path.join(browserDir, 'index.html');
+  server.use(express.static(browserDir, { index: false }));
+  server.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path === '/api' || req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+    res.sendFile(indexHtml);
+  });
 }

@@ -26,6 +26,11 @@ export {
   type StorageStateData,
   type StorageStateKeyProvider,
 } from './storage/secure-storage-state.js';
+export {
+  SettingsVault,
+  defaultSettingsFilePath,
+  type ResolvedProviderConfig,
+} from './storage/settings-vault.js';
 
 // auth
 export { loadAuthDomainsConfig, DEFAULT_AUTH_DOMAINS_CONFIG } from './auth/domain-config.js';
