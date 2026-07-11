@@ -45,16 +45,17 @@ async function main() {
   for (const rel of fileList) {
     const src = path.join(repoRoot, rel);
     const dest = path.join(stagedDir, rel);
+    let info;
     try {
-      // dereference: turn hoisted @waa/* symlinks into real files under staged/.
-      await mkdir(path.dirname(dest), { recursive: true });
-      await cp(src, dest, { dereference: true, recursive: false });
-      copied += 1;
-    } catch (error) {
-      // A traced path that no longer exists (e.g. a dangling optional dep) is skipped.
-      if ((await exists(src)) === false) continue;
-      throw error;
+      info = await stat(src); // follows symlinks
+    } catch {
+      continue; // traced path no longer exists (dangling optional dep) → skip
     }
+    await mkdir(path.dirname(dest), { recursive: true });
+    // dereference turns hoisted @waa/* symlinks into REAL dirs/files under
+    // staged/; a symlinked workspace package resolves to a directory → recurse.
+    await cp(src, dest, { dereference: true, recursive: info.isDirectory() });
+    copied += 1;
   }
 
   console.log(`Staged ${copied} files into ${path.relative(repoRoot, stagedDir)}.`);

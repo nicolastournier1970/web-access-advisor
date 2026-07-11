@@ -3,6 +3,7 @@
   "version": "3.0.0",
   "description": "Web Access Advisor desktop shell (Electron) — forks the API, serves the SPA same-origin, and drives system browsers",
   "private": true,
+  "author": "Web Access Advisor",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

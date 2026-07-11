@@ -1,6 +1,9 @@
 appId: com.webaccessadvisor.desktop
 productName: Web Access Advisor
 copyright: Copyright © 2026
+# Pinned because electron is hoisted to the workspace root (electron-builder
+# can't infer it from apps/desktop/node_modules). Keep in sync with the devDep.
+electronVersion: 33.4.11
 
 directories:
   output: release
