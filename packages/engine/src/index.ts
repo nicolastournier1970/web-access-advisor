@@ -59,3 +59,4 @@ export {
 
 // browsers
 export { detectBrowsers, probeProfile } from './browsers/detect.js';
+export { resolveSystemChannel, resetSystemChannelCache } from './browsers/system-engine.js';

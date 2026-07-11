@@ -156,7 +156,7 @@ describe('GeminiProvider.analyzeBatch', () => {
       fetchImpl: fakeFetch(() => new Response(JSON.stringify({ candidates: [] }), { status: 200 }), []),
     });
     const err = await provider.analyzeBatch(request(), 5000).catch((e: unknown) => e as Error);
-    expect((err as Error).message).toMatch(/no candidate text/i);
+    expect((err as Error).message).toMatch(/no text/i);
   });
 
   it('errors when the response was truncated at the output cap (MAX_TOKENS)', async () => {

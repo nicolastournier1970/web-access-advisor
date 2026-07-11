@@ -6,6 +6,14 @@
 import { z } from 'zod';
 import { browserTypeSchema } from './recording-api.schema.js';
 
+/**
+ * Playwright `channel` for driving a system-installed Chromium-family browser
+ * instead of the bundled binary — the mechanism that lets the packaged app ship
+ * without the ~300MB browser download. undefined = use the bundled Chromium.
+ */
+export const chromiumChannelSchema = z.enum(['msedge', 'chrome']);
+export type ChromiumChannel = z.infer<typeof chromiumChannelSchema>;
+
 export const browserOptionSchema = z.object({
   type: browserTypeSchema,
   /** Display name, e.g. "Microsoft Edge", "Google Chrome", "Firefox". */
@@ -13,6 +21,8 @@ export const browserOptionSchema = z.object({
   available: z.boolean(),
   profilePath: z.string().optional(),
   profileSupported: z.boolean().default(false),
+  /** System-browser channel this option launches with (Chromium family only). */
+  channel: chromiumChannelSchema.optional(),
 });
 export type BrowserOption = z.infer<typeof browserOptionSchema>;
 

@@ -197,6 +197,9 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
         ? CHROMIUM_ARGS
         : [...CHROMIUM_ARGS, '--start-maximized']
       : [];
+  // System-Chromium channel (packaged app); undefined = bundled binary (dev).
+  const channel = options.browserType === 'chromium' ? options.browserChannel : undefined;
+  const launchOpts = { headless, args, ...(channel !== undefined ? { channel } : {}) };
   const viewportOption = headless ? {} : { viewport: null };
   const warnings: RecorderWarning[] = [];
 
@@ -214,7 +217,7 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
       });
     }
     if (storageState !== undefined) {
-      const browser = await engine.launch({ headless, args });
+      const browser = await engine.launch(launchOpts);
       const context = await browser.newContext({
         storageState,
         ...viewportOption,
@@ -233,8 +236,7 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
         const launcher =
           options.browserType === 'firefox' ? playwright.firefox : playwright.chromium;
         const context = await launcher.launchPersistentContext(profilePath, {
-          headless,
-          args,
+          ...launchOpts,
           ...viewportOption,
         });
         const page = context.pages()[0] ?? (await context.newPage());
@@ -246,7 +248,7 @@ async function defaultLaunch(options: RecorderOptions): Promise<RecorderLaunchRe
     warnings.push({ reason: 'profile-unavailable', message: PROFILE_WARNING });
   }
 
-  const browser = await engine.launch({ headless, args });
+  const browser = await engine.launch(launchOpts);
   const context = await browser.newContext(viewportOption);
   return { browser, context, page: await context.newPage(), warnings };
 }

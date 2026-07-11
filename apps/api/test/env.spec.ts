@@ -23,6 +23,13 @@ describe('env schema', () => {
     expect(loadEnv({ GEMINI_API_KEY: 'k', LLM_PROVIDER: 'stub' }).LLM_PROVIDER).toBe('stub');
   });
 
+  it('derives the provider by key precedence: claude > openai > gemini', () => {
+    expect(loadEnv({ CLAUDE_API_KEY: 'c', GEMINI_API_KEY: 'g' }).LLM_PROVIDER).toBe('claude');
+    expect(loadEnv({ OPENAI_API_KEY: 'o', GEMINI_API_KEY: 'g' }).LLM_PROVIDER).toBe('openai');
+    expect(loadEnv({ GEMINI_API_KEY: 'g' }).LLM_PROVIDER).toBe('gemini');
+    expect(loadEnv({}).LLM_PROVIDER).toBe('stub');
+  });
+
   it('coerces numeric and boolean strings', () => {
     const env = loadEnv({
       API_PORT: '4005',
@@ -46,7 +53,7 @@ describe('env schema', () => {
 
   it('rejects invalid values loudly at bootstrap', () => {
     expect(() => loadEnv({ API_PORT: 'not-a-port' })).toThrow();
-    expect(() => loadEnv({ LLM_PROVIDER: 'openai' })).toThrow();
+    expect(() => loadEnv({ LLM_PROVIDER: 'not-a-provider' })).toThrow();
     expect(() => loadEnv({ PLAYWRIGHT_HEADLESS: 'maybe' })).toThrow();
   });
 });

@@ -172,6 +172,11 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
         ? playwright.webkit
         : playwright.chromium;
   const args = options.browserType === 'chromium' ? CHROMIUM_ARGS : [];
+  // Drive a system-installed Chromium via `channel` when the (packaged) caller
+  // set one; undefined keeps the bundled binary (dev default). channel↔profile
+  // pairing is the caller's responsibility (an Edge profile needs 'msedge').
+  const channel = options.browserType === 'chromium' ? options.browserChannel : undefined;
+  const launchOpts = { headless, args, ...(channel !== undefined ? { channel } : {}) };
   const storageStatePath = pathsFor(options).storageState;
 
   let storageStateWarning: string | undefined;
@@ -187,7 +192,7 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
       storageStateWarning = `Saved login could not be loaded (${describeError(error)}); continuing without it.`;
     }
     if (storageState !== undefined) {
-      const browser = await engine.launch({ headless, args });
+      const browser = await engine.launch(launchOpts);
       const context = await browser.newContext({ storageState });
       return { browser, context, page: await context.newPage() };
     }
@@ -200,7 +205,7 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
         // Edge/Chrome profiles launch with the bundled chromium binary.
         const launcher =
           options.browserType === 'firefox' ? playwright.firefox : playwright.chromium;
-        const context = await launcher.launchPersistentContext(profilePath, { headless, args });
+        const context = await launcher.launchPersistentContext(profilePath, launchOpts);
         const page = context.pages()[0] ?? (await context.newPage());
         return {
           context,
@@ -211,7 +216,7 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
         // Profile locked by a running browser, or unusable → clean fallback.
       }
     }
-    const browser = await engine.launch({ headless, args });
+    const browser = await engine.launch(launchOpts);
     const context = await browser.newContext();
     const profileWarning =
       'Requested browser profile could not be used; continuing with a clean browser session.';
@@ -226,7 +231,7 @@ async function defaultLaunch(options: AnalyzeOptions): Promise<AnalyzerLaunchRes
     };
   }
 
-  const browser = await engine.launch({ headless, args });
+  const browser = await engine.launch(launchOpts);
   const context = await browser.newContext();
   return {
     browser,

@@ -141,8 +141,9 @@ function makeFakeEngine() {
     })),
     isAuthUrl: vi.fn(() => false),
     sessionPaths: vi.fn(),
-    GeminiProvider: FakeProvider,
-    StubProvider: FakeProvider,
+    createLlmProvider: vi.fn((choice: string) =>
+      choice === 'none' ? null : new FakeProvider(),
+    ),
   };
 
   return { engine, recorderHandle, recorderEvents, analyzeEvents, control, analysisResult };

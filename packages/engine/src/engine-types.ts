@@ -14,6 +14,7 @@ import type {
   AuthCheckpoint,
   AuthDomainsConfig,
   BrowserType,
+  ChromiumChannel,
   LlmAnalysis,
   RecordingV2,
   ReplayAuthState,
@@ -84,6 +85,12 @@ export interface RecorderOptions {
   /** Installed browser display name ("Microsoft Edge", "Google Chrome") for profile launch. */
   browserName?: string;
   useProfile: boolean;
+  /**
+   * Drive a system-installed Chromium via Playwright `channel` (msedge/chrome)
+   * instead of the bundled binary — set by the packaged app, which ships no
+   * bundled browser. undefined = bundled Chromium (dev default).
+   */
+  browserChannel?: ChromiumChannel;
   headless?: boolean;
   /** Absolute session directory (…/snapshots/<sessionId>). Created if missing. */
   sessionDir: string;
@@ -165,6 +172,8 @@ export interface AnalyzeOptions {
   browserType: BrowserType;
   browserName?: string;
   useProfile: boolean;
+  /** System-browser channel (msedge/chrome) for the packaged app; undefined = bundled Chromium. */
+  browserChannel?: ChromiumChannel;
   headless?: boolean;
   captureScreenshots: boolean;
   staticSectionMode: StaticSectionMode;

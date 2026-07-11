@@ -50,7 +50,7 @@ describe('parseCliArgs — bad usage (exit code 2)', () => {
 
   it('rejects an invalid --llm choice', () => {
     const error = usageErrorOf(['analyze', '--url', 'https://a.test/', '--llm', 'gpt4']);
-    expect(error.message).toContain('gemini | stub | none');
+    expect(error.message).toContain('gemini | claude | openai | ollama | stub | none');
   });
 
   it.each(['abc', '-5', '0', '1.5'])('rejects --auth-timeout %s', (value) => {

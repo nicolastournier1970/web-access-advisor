@@ -15,13 +15,15 @@ Exit codes
   0  success        1  analysis failed        2  bad usage
 
 Environment
-  GEMINI_API_KEY   Required for --llm gemini (read from the environment only,
-                   never written to disk). The default provider is "stub".`;
+  <PROVIDER>_API_KEY   Key for a paid --llm provider (GEMINI_API_KEY,
+                       CLAUDE_API_KEY, OPENAI_API_KEY) — read from the
+                       environment only, never written to disk. The default
+                       provider is "stub"; ollama is keyless.`;
 
 export const ANALYZE_HELP = `waa analyze — single-page accessibility analysis
 
 Usage
-  waa analyze --url <url> [--out <dir>] [--llm gemini|stub|none]
+  waa analyze --url <url> [--out <dir>] [--llm gemini|claude|openai|ollama|stub|none]
               [--headless] [--screenshots] [--auth-timeout <ms>]
 
 Builds a one-step recording (navigate to <url>) in memory and runs the full
@@ -32,8 +34,11 @@ Options
   --url <url>           Page to analyze (required).
   --out <dir>           Output session directory
                         (default ./snapshots/session_cli_<timestamp>).
-  --llm <provider>      gemini | stub | none (default stub). "gemini" requires
-                        the GEMINI_API_KEY environment variable.
+  --llm <provider>      gemini | claude | openai | ollama | stub | none
+                        (default stub). Paid providers read their key from the
+                        matching <PROVIDER>_API_KEY environment variable
+                        (GEMINI_API_KEY, CLAUDE_API_KEY, OPENAI_API_KEY); ollama
+                        is keyless (OLLAMA_BASE_URL, default localhost:11434).
   --headless            Run the browser headless (default: headed).
   --screenshots         Capture a screenshot for every snapshot step.
   --auth-timeout <ms>   How long a pause-for-login may last before timing out
@@ -43,7 +48,7 @@ export const REPLAY_HELP = `waa replay — replay a recorded session and analyze
 
 Usage
   waa replay --recording <path/to/recording.json> [--out <dir>]
-             [--llm gemini|stub|none] [--headless] [--screenshots]
+             [--llm gemini|claude|openai|ollama|stub|none] [--headless] [--screenshots]
              [--auth-timeout <ms>]
 
 Loads a recording.json and runs the replay + snapshot + axe-core (+ LLM)
@@ -62,8 +67,11 @@ Options
   --out <dir>           Output session directory
                         (default: the recording file's own directory, so an
                         existing storageState.json is reused).
-  --llm <provider>      gemini | stub | none (default stub). "gemini" requires
-                        the GEMINI_API_KEY environment variable.
+  --llm <provider>      gemini | claude | openai | ollama | stub | none
+                        (default stub). Paid providers read their key from the
+                        matching <PROVIDER>_API_KEY environment variable
+                        (GEMINI_API_KEY, CLAUDE_API_KEY, OPENAI_API_KEY); ollama
+                        is keyless (OLLAMA_BASE_URL, default localhost:11434).
   --headless            Run the browser headless (default: headed).
   --screenshots         Capture a screenshot for every snapshot step.
   --auth-timeout <ms>   How long a pause-for-login may last before timing out

@@ -10,6 +10,7 @@
  * decrypts encrypted-at-rest files and passes legacy plaintext ones through
  * (see storage/secure-storage-state.ts).
  */
+import type { ChromiumChannel } from '@waa/shared';
 import {
   readStorageStateFile,
   StorageStateDecryptError,
@@ -115,6 +116,8 @@ export interface ValidateStorageStateOptions {
   timeoutMs?: number;
   /** Defaults to true — validation probes should never pop a window. */
   headless?: boolean;
+  /** System-Chromium channel (msedge/chrome) for the packaged app; undefined = bundled. */
+  channel?: ChromiumChannel;
   /**
    * When provided, the landed URL is tested after navigation (and selector
    * wait); returning true fails validation with reason 'landed-on-auth-page'
@@ -122,7 +125,7 @@ export interface ValidateStorageStateOptions {
    */
   isAuthUrl?: (url: string) => boolean;
   /** Test seam: replaces `chromium.launch`. Production callers omit it. */
-  launchBrowser?: (options: { headless: boolean }) => Promise<ProbeBrowser>;
+  launchBrowser?: (options: { headless: boolean; channel?: ChromiumChannel }) => Promise<ProbeBrowser>;
 }
 
 /** Outcome of a behavioural storage-state probe (never contains cookie data). */
@@ -162,7 +165,7 @@ export async function validateStorageState(
 
   const launch =
     opts.launchBrowser ??
-    (async (options: { headless: boolean }): Promise<ProbeBrowser> => {
+    (async (options: { headless: boolean; channel?: ChromiumChannel }): Promise<ProbeBrowser> => {
       // Lazy import keeps playwright out of the module graph for callers that
       // only ever hit the pre-flight failure path (and for unit tests).
       const { chromium } = await import('playwright');
@@ -171,7 +174,10 @@ export async function validateStorageState(
 
   let browser: ProbeBrowser | undefined;
   try {
-    browser = await launch({ headless: opts.headless ?? true });
+    browser = await launch({
+      headless: opts.headless ?? true,
+      ...(opts.channel !== undefined ? { channel: opts.channel } : {}),
+    });
     const context = await browser.newContext({ storageState });
     const page = await context.newPage();
 
