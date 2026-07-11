@@ -7,10 +7,12 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && node scripts/dev.mjs",
     "start": "npm run build && electron .",
-    "pack:dir": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
-    "dist:publish": "npm run build && electron-builder --publish always"
+    "stage": "node scripts/stage-server.mjs",
+    "pack:dir": "npm run build && node scripts/stage-server.mjs && electron-builder --dir",
+    "dist": "npm run build && node scripts/stage-server.mjs && electron-builder",
+    "dist:publish": "npm run build && node scripts/stage-server.mjs && electron-builder --publish always"
   },
   "dependencies": {
     "@waa/core": "^3.0.0",

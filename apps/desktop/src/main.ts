@@ -79,20 +79,34 @@ function createWindow(url: string): BrowserWindow {
 
 async function start(): Promise<void> {
   registerSettingsIpc();
-  try {
-    apiHandle = await launchApi();
-  } catch (error) {
-    const { dialog } = await import('electron');
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'Web Access Advisor',
-      message: 'The analysis service could not start.',
-      detail: error instanceof Error ? error.message : String(error),
-    });
-    app.quit();
-    return;
+
+  // Dev hot-reload mode: WAA_DEV_URL points at the Angular dev server (which
+  // proxies /api to the standalone dev API on :3002). The API is NOT forked
+  // here, so UI changes hot-reload inside the real Electron chrome. Note: the
+  // settings IPC bridge talks to the main-process vault, separate from the dev
+  // API's — fine for UI work; use the full (no-WAA_DEV_URL) mode to exercise it.
+  const devUrl = process.env['WAA_DEV_URL'];
+  let url: string;
+  if (devUrl !== undefined && devUrl !== '') {
+    url = devUrl;
+  } else {
+    try {
+      apiHandle = await launchApi();
+    } catch (error) {
+      const { dialog } = await import('electron');
+      await dialog.showMessageBox({
+        type: 'error',
+        title: 'Web Access Advisor',
+        message: 'The analysis service could not start.',
+        detail: error instanceof Error ? error.message : String(error),
+      });
+      app.quit();
+      return;
+    }
+    url = apiHandle.url;
   }
-  mainWindow = createWindow(apiHandle.url);
+
+  mainWindow = createWindow(url);
   initAutoUpdater(mainWindow);
 }
 
