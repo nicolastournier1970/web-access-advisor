@@ -7,6 +7,7 @@
  */
 import { Global, Module } from '@nestjs/common';
 import { z } from 'zod';
+import { llmProviderIdSchema, type LlmProviderId } from '@waa/shared';
 
 export const envSchema = z
   .object({
@@ -21,11 +22,26 @@ export const envSchema = z
     GEMINI_MODEL: z.string().optional(),
     /** Gemini thinking-token budget; unset → the provider's default (0 = no thinking). */
     GEMINI_THINKING_BUDGET: z.coerce.number().int().nonnegative().optional(),
+    /** Anthropic Claude API key; presence can auto-select the 'claude' provider. */
+    CLAUDE_API_KEY: z.string().optional(),
+    /** Pins the Claude model id; unset → the catalog default (claude-opus-4-8). */
+    CLAUDE_MODEL: z.string().optional(),
+    /** OpenAI API key; presence can auto-select the 'openai' provider. */
+    OPENAI_API_KEY: z.string().optional(),
+    /** Pins the OpenAI model id; unset → the catalog default (gpt-4o). */
+    OPENAI_MODEL: z.string().optional(),
+    /** OpenAI-compatible base URL override (Azure/gateways); unset → the public API. */
+    OPENAI_BASE_URL: z.string().optional(),
+    /** Ollama server base URL; unset → the provider default (http://localhost:11434). */
+    OLLAMA_BASE_URL: z.string().optional(),
+    /** Pins the Ollama model id; unset → the catalog default (llama3.1). */
+    OLLAMA_MODEL: z.string().optional(),
     /**
-     * When unset, derived from GEMINI_API_KEY in the transform below:
-     * key present → 'gemini', otherwise → 'stub'.
+     * When unset, derived in the transform below from whichever provider key is
+     * present (precedence: claude → openai → gemini → stub). Ollama is never
+     * auto-selected (its reachability can't be cheaply probed at boot).
      */
-    LLM_PROVIDER: z.enum(['gemini', 'stub']).optional(),
+    LLM_PROVIDER: llmProviderIdSchema.optional(),
     HTTPS_PROXY: z.string().optional(),
     SNAPSHOTS_DIR: z.string().default('./snapshots'),
     AUTH_DOMAINS_CONFIG: z.string().default('./config/auth-domains.json'),
@@ -47,8 +63,14 @@ export const envSchema = z
     REPLAY_PAUSE_SCALE: z.coerce.number().positive().default(1),
   })
   .transform((env) => {
-    const provider: 'gemini' | 'stub' =
-      env.LLM_PROVIDER ?? (env.GEMINI_API_KEY ? 'gemini' : 'stub');
+    const derived: LlmProviderId = env.CLAUDE_API_KEY
+      ? 'claude'
+      : env.OPENAI_API_KEY
+        ? 'openai'
+        : env.GEMINI_API_KEY
+          ? 'gemini'
+          : 'stub';
+    const provider: LlmProviderId = env.LLM_PROVIDER ?? derived;
     return { ...env, LLM_PROVIDER: provider };
   });
 

@@ -5,9 +5,9 @@
  */
 import { Global, Module } from '@nestjs/common';
 import {
+  createLlmProvider,
   createRecorder,
   detectBrowsers,
-  GeminiProvider,
   getStorageStateStatus,
   isAuthUrl,
   loadAuthDomainsConfig,
@@ -15,7 +15,6 @@ import {
   probeProfile,
   runAnalysis,
   sessionPaths,
-  StubProvider,
   validateStorageState,
 } from '@waa/core';
 
@@ -30,8 +29,7 @@ export const engineFacade = {
   loadAuthDomainsConfig,
   isAuthUrl,
   sessionPaths,
-  GeminiProvider,
-  StubProvider,
+  createLlmProvider,
 };
 export type EngineFacade = typeof engineFacade;
 

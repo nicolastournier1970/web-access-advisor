@@ -44,8 +44,18 @@ export { AuthCheckpointMachine } from './replay/auth-checkpoint.js';
 export { runAnalysis } from './analysis/analyzer.js';
 
 // llm
+export { HttpJsonLlmProvider, type HttpProviderRequest } from './llm/http-provider.js';
+export { consolidateAnalyses } from './llm/consolidate.js';
 export { GeminiProvider } from './llm/gemini.provider.js';
+export { ClaudeProvider } from './llm/claude.provider.js';
+export { OpenAiProvider } from './llm/openai.provider.js';
+export { OllamaProvider } from './llm/ollama.provider.js';
 export { StubProvider } from './llm/stub.provider.js';
+export {
+  createLlmProvider,
+  LlmProviderConfigError,
+  type LlmProviderConfig,
+} from './llm/registry.js';
 
 // browsers
 export { detectBrowsers, probeProfile } from './browsers/detect.js';

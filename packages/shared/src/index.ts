@@ -7,6 +7,7 @@
 export * from './recording/recording.schema.js';
 export * from './manifest/manifest.schema.js';
 export * from './analysis/analysis.schema.js';
+export * from './llm/provider.schema.js';
 export * from './api/sessions-api.schema.js';
 export * from './api/recording-api.schema.js';
 export * from './api/analysis-api.schema.js';

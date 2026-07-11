@@ -11,12 +11,13 @@
  */
 import { z } from 'zod';
 import { analysisPhaseSchema, staticSectionModeSchema } from '../analysis/analysis.schema.js';
+import { llmProviderChoiceSchema } from '../llm/provider.schema.js';
 
 export const startAnalysisRequestSchema = z.object({
   staticSectionMode: staticSectionModeSchema.default('separate'),
   captureScreenshots: z.boolean().default(true),
-  /** Overrides the env-selected provider; 'stub' is used by tests/CI. */
-  llmProvider: z.enum(['gemini', 'stub', 'none']).optional(),
+  /** Overrides the env/settings-selected provider; 'stub' is used by tests/CI, 'none' disables AI. */
+  llmProvider: llmProviderChoiceSchema.optional(),
 });
 export type StartAnalysisRequest = z.infer<typeof startAnalysisRequestSchema>;
 
