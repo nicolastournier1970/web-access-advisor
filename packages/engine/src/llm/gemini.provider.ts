@@ -46,7 +46,10 @@ type FetchInit = Omit<RequestInit, 'dispatcher'> & { dispatcher?: Dispatcher };
 
 /** Minimal shape of a generateContent response — only what we read. */
 interface GenerateContentResponse {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+    finishReason?: string;
+  }>;
 }
 
 /** Concatenates candidates[0].content.parts[*].text; '' when absent. */
@@ -144,11 +147,14 @@ export class GeminiProvider implements LlmProvider {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        // 32768 output: a whole-session batch can carry dozens of findings +
-        // per-violation corrected code; 8192 risked clipping the JSON mid-array.
+        // responseMimeType makes the model emit pure JSON (no fences/prose).
+        // 65536 output: a whole-session batch carries dozens of findings +
+        // per-violation corrected code, AND thinking tokens count against
+        // this cap — 32768 got clipped mid-JSON on real sessions.
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 32768,
+          maxOutputTokens: 65536,
+          responseMimeType: 'application/json',
           thinkingConfig: { thinkingBudget: this.thinkingBudget },
         },
       }),
@@ -176,6 +182,16 @@ export class GeminiProvider implements LlmProvider {
       payload = await response.json();
     } catch {
       throw new Error('Gemini API returned a non-JSON response body.');
+    }
+
+    // A MAX_TOKENS finish means the JSON was cut off mid-answer — fail the
+    // batch with a diagnosable reason instead of handing half-JSON to the parser.
+    const finishReason = (payload as GenerateContentResponse).candidates?.[0]?.finishReason;
+    if (finishReason === 'MAX_TOKENS') {
+      throw new Error(
+        'Gemini response was truncated at the output-token cap (finishReason MAX_TOKENS); ' +
+          'lower GEMINI_THINKING_BUDGET or reduce the batch size.',
+      );
     }
 
     const text = extractCandidateText(payload);

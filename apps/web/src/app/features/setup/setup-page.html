@@ -54,13 +54,15 @@
             type="checkbox"
             class="mt-0.5 size-4 accent-blueberry-600"
             [checked]="reuseSavedLogin()"
-            (change)="reuseSavedLogin.set($any($event.target).checked)"
+            (change)="toggleReuseSavedLogin($any($event.target).checked)"
           />
           <span class="text-sm">
-            Reuse saved login from
+            Skip signing in — use the login saved
             <strong>{{ storageMatches()[0].savedAt | date: 'medium' }}</strong>
             <span class="block text-xs opacity-80">
-              A previous session on this site saved a login. It will be validated before use.
+              You signed in to this site during an earlier session, so this app saved that login
+              (just for this site). It will be checked first; if it has expired you can simply sign
+              in again.
             </span>
           </span>
         </label>
@@ -111,22 +113,32 @@
 
         @if (selectedBrowser(); as selected) {
           <div class="mt-4 border-t border-line pt-4">
+            <!-- Cursor comes from the global base rules (pointer / not-allowed by input state). -->
             <label
-              class="flex cursor-pointer items-start gap-3"
-              [class.opacity-50]="!selected.profilePath"
-              [class.cursor-not-allowed]="!selected.profilePath"
+              class="flex items-start gap-3"
+              [class.opacity-50]="!selected.profilePath || reuseSavedLogin()"
             >
               <input
                 type="checkbox"
                 class="mt-0.5 size-4 accent-blueberry-600"
                 [checked]="useProfile()"
-                [disabled]="!selected.profilePath"
+                [disabled]="!selected.profilePath || reuseSavedLogin()"
                 (change)="toggleProfile($any($event.target).checked)"
               />
               <span class="text-sm text-ink">
-                Use my {{ selected.name }} profile (saved logins)
-                @if (!selected.profilePath) {
+                Use the logins already in my {{ selected.name }} (all sites)
+                @if (reuseSavedLogin()) {
+                  <span class="block text-xs text-muted">
+                    Not needed — the saved login above will be used.
+                  </span>
+                } @else if (!selected.profilePath) {
                   <span class="block text-xs text-muted">No profile detected for this browser.</span>
+                } @else {
+                  <span class="block text-xs text-muted">
+                    Records in a browser that is already signed in everywhere your
+                    {{ selected.name }} is — handy when this app has no saved login for the site
+                    yet.
+                  </span>
                 }
               </span>
             </label>

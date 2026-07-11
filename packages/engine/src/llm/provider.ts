@@ -3,33 +3,16 @@
  * engine-types) plus the tolerant response parser every provider funnels raw
  * model output through.
  *
- * Leniency policy (mirrors @waa/shared): LLM output must never be able to
- * throw past this module. Anything unparseable degrades to a schema-valid
- * empty analysis whose summary explains the failure.
+ * Leniency policy (mirrors @waa/shared): individual sloppy ITEMS degrade
+ * (dropped/defaulted), but a response that cannot be turned into an analysis
+ * at all THROWS — the batch then fails visibly through runLlmAnalysis's
+ * onBatchError → analysis warning. The previous fabricate-an-empty-analysis
+ * fallback let a garbled batch pollute the consolidated summary with its own
+ * error text and drag the score mean, with no warning anywhere.
  */
 import { componentIssueSchema, llmAnalysisSchema, type LlmAnalysis } from '@waa/shared';
 
 export type { LlmProvider, LlmBatchRequest } from '../engine-types.js';
-
-/** Neutral score used when the model response could not be interpreted. */
-const PARSE_FAILURE_SCORE = 50;
-
-/**
- * Builds the schema-valid fallback returned whenever the raw model text cannot
- * be turned into an analysis. Exported so providers can reuse it for their own
- * degenerate paths (e.g. empty candidate lists).
- */
-export function emptyLlmAnalysis(summary: string): LlmAnalysis {
-  return llmAnalysisSchema.parse({
-    summary,
-    components: [],
-    recommendations: [
-      'The AI analysis could not be processed due to response formatting issues.',
-      'Re-run the analysis, or review the page manually for accessibility issues.',
-    ],
-    score: PARSE_FAILURE_SCORE,
-  });
-}
 
 /**
  * Strips markdown code fences and any prose surrounding the outermost JSON
@@ -87,30 +70,28 @@ function sanitizeEnhancedViolations(value: unknown): unknown[] | undefined {
 }
 
 /**
- * Parses raw LLM text into a schema-valid LlmAnalysis. NEVER throws:
+ * Parses raw LLM text into a schema-valid LlmAnalysis:
  *  - strips markdown fences and prose around the outermost `{ ... }`;
  *  - JSON.parses, then pre-sanitizes LLM-origin arrays item-by-item;
  *  - validates through llmAnalysisSchema (whose .catch()/defaults absorb
  *    remaining sloppiness, e.g. off-vocabulary impact, out-of-range score);
- *  - on any unrecoverable input returns emptyLlmAnalysis() with a summary
- *    describing the failure.
+ *  - THROWS on unrecoverable input (no JSON, invalid JSON, wrong shape) so
+ *    the batch fails loudly instead of consolidating an empty fake analysis.
  */
 export function parseLlmJsonResponse(text: string): LlmAnalysis {
   const jsonText = extractJsonObject(text);
   if (jsonText === null) {
-    return emptyLlmAnalysis(
-      'LLM analysis failed to parse: no JSON object was found in the model response.',
-    );
+    throw new Error('LLM analysis failed to parse: no JSON object was found in the model response.');
   }
 
   let raw: unknown;
   try {
     raw = JSON.parse(jsonText);
   } catch {
-    return emptyLlmAnalysis('LLM analysis failed to parse: the model response was not valid JSON.');
+    throw new Error('LLM analysis failed to parse: the model response was not valid JSON.');
   }
   if (!isRecord(raw)) {
-    return emptyLlmAnalysis('LLM analysis failed to parse: the model response was not a JSON object.');
+    throw new Error('LLM analysis failed to parse: the model response was not a JSON object.');
   }
 
   const candidate: Record<string, unknown> = {
@@ -132,7 +113,7 @@ export function parseLlmJsonResponse(text: string): LlmAnalysis {
 
   const result = llmAnalysisSchema.safeParse(candidate);
   if (!result.success) {
-    return emptyLlmAnalysis(
+    throw new Error(
       'LLM analysis failed schema validation despite parsing as JSON; the response was discarded.',
     );
   }

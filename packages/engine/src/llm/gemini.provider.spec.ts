@@ -63,7 +63,8 @@ describe('GeminiProvider.analyzeBatch', () => {
     const body = JSON.parse(String(call.init.body));
     expect(body.generationConfig).toEqual({
       temperature: 0.1,
-      maxOutputTokens: 32768,
+      maxOutputTokens: 65536,
+      responseMimeType: 'application/json',
       thinkingConfig: { thinkingBudget: 0 }, // no thinking by default
     });
     expect(body.contents).toHaveLength(1);
@@ -156,6 +157,33 @@ describe('GeminiProvider.analyzeBatch', () => {
     });
     const err = await provider.analyzeBatch(request(), 5000).catch((e: unknown) => e as Error);
     expect((err as Error).message).toMatch(/no candidate text/i);
+  });
+
+  it('errors when the response was truncated at the output cap (MAX_TOKENS)', async () => {
+    const truncated = JSON.stringify({
+      candidates: [
+        { content: { parts: [{ text: '{"summary": "cut off mid-' }] }, finishReason: 'MAX_TOKENS' },
+      ],
+    });
+    const provider = new GeminiProvider({
+      apiKey: API_KEY,
+      fetchImpl: fakeFetch(() => new Response(truncated, { status: 200 }), []),
+    });
+    const err = await provider.analyzeBatch(request(), 5000).catch((e: unknown) => e as Error);
+    expect((err as Error).message).toMatch(/truncated at the output-token cap/i);
+  });
+
+  it('sends the configured thinking budget', async () => {
+    const calls: CapturedCall[] = [];
+    const analysisJson = JSON.stringify({ summary: 'ok', components: [], recommendations: [], score: 80 });
+    const provider = new GeminiProvider({
+      apiKey: API_KEY,
+      thinkingBudget: 8192,
+      fetchImpl: fakeFetch(() => new Response(geminiBody(analysisJson), { status: 200 }), calls),
+    });
+    await provider.analyzeBatch(request(), 5000);
+    const body = JSON.parse(String(calls[0]!.init.body));
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 8192 });
   });
 
   it('requires a non-empty apiKey', () => {

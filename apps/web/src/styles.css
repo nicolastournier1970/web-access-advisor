@@ -5,3 +5,25 @@
 @import '@angular/cdk/overlay-prebuilt.css';
 @import '@angular/cdk/a11y-prebuilt.css';
 @import './styles/theme.css';
+
+/* Tailwind v4 preflight gives buttons `cursor: default` (native browser
+   behaviour); this app follows web-app convention instead: every enabled
+   interactive control shows a pointer, disabled ones show not-allowed.
+   Individual `cursor-*` utilities still win over these base rules. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  select:not(:disabled),
+  summary,
+  label:has(> input[type='checkbox']:not(:disabled)),
+  label:has(> input[type='radio']:not(:disabled)) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  label:has(> input[type='checkbox']:disabled),
+  label:has(> input[type='radio']:disabled) {
+    cursor: not-allowed;
+  }
+}

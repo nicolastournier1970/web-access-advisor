@@ -159,6 +159,12 @@ export class SetupPage implements OnInit {
     if (checked && selected?.profilePath) void this.runProfileProbe(selected);
   }
 
+  /** The saved login takes priority, so selecting it switches the profile option off. */
+  protected toggleReuseSavedLogin(checked: boolean): void {
+    this.reuseSavedLogin.set(checked);
+    if (checked && this.useProfile()) this.toggleProfile(false);
+  }
+
   private async runProfileProbe(browser: BrowserOption): Promise<void> {
     this.probing.set(true);
     try {
@@ -210,7 +216,11 @@ export class SetupPage implements OnInit {
     const url = normalizeUrl(this.urlControl.value);
     this.urlControl.setValue(url);
     const selected = this.selectedBrowser();
-    const useProfile = this.useProfile() && !!selected?.profilePath;
+    const reuseFrom = this.storageMatches()[0];
+    const reusingSavedLogin = this.reuseSavedLogin() && reuseFrom !== undefined;
+    // Saved login wins over the profile (the UI disables the profile option
+    // while reuse is ticked; this guards the request shape either way).
+    const useProfile = !reusingSavedLogin && this.useProfile() && !!selected?.profilePath;
     const request: StartRecordingRequestInput = {
       url,
       browserType: selected?.type ?? 'chromium',
@@ -219,8 +229,7 @@ export class SetupPage implements OnInit {
     if (selected) request.browserName = selected.name;
     const name = this.nameControl.value.trim();
     if (name) request.name = name;
-    const reuseFrom = this.storageMatches()[0];
-    if (this.reuseSavedLogin() && reuseFrom) {
+    if (reusingSavedLogin && reuseFrom !== undefined) {
       request.reuseStorageStateFrom = reuseFrom.sessionId;
     }
 

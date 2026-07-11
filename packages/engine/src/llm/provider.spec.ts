@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { llmAnalysisSchema } from '@waa/shared';
-import { parseLlmJsonResponse, emptyLlmAnalysis } from './provider.js';
+import { parseLlmJsonResponse } from './provider.js';
 
 const FULL_RESPONSE = {
   summary: 'One issue found.',
@@ -49,19 +49,17 @@ describe('parseLlmJsonResponse', () => {
     expect(analysis.components).toHaveLength(1);
   });
 
-  it('returns a schema-valid empty analysis for unparseable text', () => {
-    for (const bad of ['', 'no json here', '{ "summary": broken', '[1, 2, 3]']) {
-      const analysis = parseLlmJsonResponse(bad);
-      expect(llmAnalysisSchema.safeParse(analysis).success).toBe(true);
-      expect(analysis.components).toEqual([]);
-      expect(analysis.summary.toLowerCase()).toContain('failed to parse');
-      expect(typeof analysis.score).toBe('number');
+  it('throws a descriptive error for unparseable text (the batch must fail loudly)', () => {
+    for (const bad of ['', 'no json here', '{ "summary": broken', '[1, 2, 3]', '{{{{}}}}']) {
+      expect(() => parseLlmJsonResponse(bad)).toThrowError(/failed to parse/i);
     }
   });
 
-  it('never throws, even for pathological input', () => {
-    expect(() => parseLlmJsonResponse('{{{{}}}}')).not.toThrow();
-    expect(() => parseLlmJsonResponse('{"components": 42}')).not.toThrow();
+  it('still tolerates recoverable sloppiness without throwing', () => {
+    // components: 42 → sanitized to [] (item-level leniency is unchanged).
+    const analysis = parseLlmJsonResponse('{"components": 42, "summary": "ok", "score": 10}');
+    expect(analysis.components).toEqual([]);
+    expect(analysis.summary).toBe('ok');
   });
 
   it('degrades off-vocabulary impact to moderate and clamps score', () => {
@@ -108,14 +106,5 @@ describe('parseLlmJsonResponse', () => {
     const ids = (analysis.enhancedAxeViolations ?? []).map((v) => v.id);
     expect(ids).toEqual(['landmark-one-main', 'bad-wcag']);
     expect(analysis.enhancedAxeViolations![1]!.wcag).toBeUndefined();
-  });
-});
-
-describe('emptyLlmAnalysis', () => {
-  it('is schema-valid and carries the given summary', () => {
-    const analysis = emptyLlmAnalysis('boom');
-    expect(llmAnalysisSchema.safeParse(analysis).success).toBe(true);
-    expect(analysis.summary).toBe('boom');
-    expect(analysis.components).toEqual([]);
   });
 });
