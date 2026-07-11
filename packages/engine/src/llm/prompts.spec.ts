@@ -147,6 +147,16 @@ describe('buildConsolidationNote', () => {
     expect(note).toContain('Batch two findings.');
   });
 
+  it('drops verbatim-duplicate batch summaries', () => {
+    const note = buildConsolidationNote(
+      [analysis('Same findings.'), analysis('Same findings.'), analysis('Other findings.')],
+      'https://example.com',
+    );
+    expect(note).toContain('3 batch(es)');
+    expect(note.match(/Same findings\./g)).toHaveLength(1);
+    expect(note).toContain('Other findings.');
+  });
+
   it('caps the joined summaries', () => {
     const long = analysis('y'.repeat(5000));
     const note = buildConsolidationNote([long, long], 'https://example.com');

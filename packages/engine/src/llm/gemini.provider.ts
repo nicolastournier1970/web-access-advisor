@@ -18,6 +18,13 @@ export interface GeminiProviderOptions {
   model?: string;
   /** Forward proxy URL; when set, requests go through an undici ProxyAgent. */
   proxyUrl?: string;
+  /**
+   * Gemini thinking-token budget. Default 0: current Flash models think
+   * DYNAMICALLY by default (hundreds of thought tokens even on trivial
+   * prompts — measured 2.2× slower), and this extraction-shaped analysis
+   * doesn't need it. Raise (e.g. 1024) to buy deeper semantic hunting.
+   */
+  thinkingBudget?: number;
   /** Injected fetch for tests; defaults to undici's fetch. */
   fetchImpl?: typeof fetch;
 }
@@ -62,6 +69,7 @@ export class GeminiProvider implements LlmProvider {
 
   private readonly apiKey: string;
   private readonly model: string;
+  private readonly thinkingBudget: number;
   private readonly fetchImpl: typeof fetch;
   private readonly dispatcher?: Dispatcher;
 
@@ -69,6 +77,7 @@ export class GeminiProvider implements LlmProvider {
     if (!opts.apiKey) throw new Error('GeminiProvider requires a non-empty apiKey.');
     this.apiKey = opts.apiKey;
     this.model = opts.model ?? DEFAULT_MODEL;
+    this.thinkingBudget = opts.thinkingBudget ?? 0;
     this.fetchImpl = opts.fetchImpl ?? (undiciFetch as unknown as typeof fetch);
     if (opts.proxyUrl) this.dispatcher = new ProxyAgent(opts.proxyUrl);
   }
@@ -135,7 +144,13 @@ export class GeminiProvider implements LlmProvider {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+        // 32768 output: a whole-session batch can carry dozens of findings +
+        // per-violation corrected code; 8192 risked clipping the JSON mid-array.
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 32768,
+          thinkingConfig: { thinkingBudget: this.thinkingBudget },
+        },
       }),
       signal: AbortSignal.timeout(timeoutMs),
     };

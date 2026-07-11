@@ -61,7 +61,11 @@ describe('GeminiProvider.analyzeBatch', () => {
     expect(call.init.signal).toBeInstanceOf(AbortSignal);
 
     const body = JSON.parse(String(call.init.body));
-    expect(body.generationConfig).toEqual({ temperature: 0.1, maxOutputTokens: 8192 });
+    expect(body.generationConfig).toEqual({
+      temperature: 0.1,
+      maxOutputTokens: 32768,
+      thinkingConfig: { thinkingBudget: 0 }, // no thinking by default
+    });
     expect(body.contents).toHaveLength(1);
     const promptText: string = body.contents[0].parts[0].text;
     expect(promptText).toMatch(/expert screen-reader accessibility auditor/i);

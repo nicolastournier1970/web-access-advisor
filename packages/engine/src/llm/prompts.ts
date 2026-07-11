@@ -159,7 +159,9 @@ ${request.snapshots.map(snapshotSection).join('\n\n')}`,
  */
 export function buildConsolidationNote(batches: LlmAnalysis[], sessionUrl: string): string {
   const head = `Consolidated accessibility analysis for ${sessionUrl} across ${batches.length} batch(es).`;
-  const summaries = batches.map((b) => b.summary.trim()).filter((s) => s.length > 0);
+  // Set-dedupe: batches of similar page states produce verbatim-identical
+  // summaries; repeating them reads as noise in the report header.
+  const summaries = [...new Set(batches.map((b) => b.summary.trim()).filter((s) => s.length > 0))];
   if (summaries.length === 0) return head;
   let joined = summaries.join(' ');
   if (joined.length > CONSOLIDATION_SUMMARY_CHARS) {

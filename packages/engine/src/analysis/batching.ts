@@ -19,8 +19,15 @@ import type { LlmBatchRequest, LlmProvider } from '../engine-types.js';
 import { slimAxeViolations, truncateHtml } from '../llm/slimming.js';
 import type { AnalyzerSnapshot } from './manifest-builder.js';
 
-/** Default per-batch token budget (reserves space for the rolling summary). */
-export const DEFAULT_MAX_BATCH_TOKENS = 8000;
+/**
+ * Default per-batch token budget (reserves space for the rolling summary).
+ * The legacy value (8000, ~32KB of HTML) predates million-token contexts: it
+ * forced every real-world page into its own TRUNCATED single-snapshot batch
+ * (10 snapshots = 10 sequential LLM calls, each seeing a cut-off DOM). 100k
+ * keeps a typical session in one or two batches with whole pages, well under
+ * current Flash context (1M) and free-tier per-minute token limits.
+ */
+export const DEFAULT_MAX_BATCH_TOKENS = 100_000;
 /** Rolling-summary cap forwarded to the next batch (legacy value). */
 const PROGRESSIVE_SUMMARY_MAX_CHARS = 2000;
 /** HTML floor for a snapshot that alone exceeds the batch budget. */
@@ -101,7 +108,7 @@ function toBatchSnapshot(snapshot: AnalyzerSnapshot): BatchSnapshot {
 }
 
 /**
- * Split flow groups into batches capped at `maxTokens` (default 8000). A
+ * Split flow groups into batches capped at `maxTokens` (default 100k). A
  * group that fits becomes one batch; larger groups accumulate snapshots until
  * the cap. A SINGLE snapshot whose own estimate exceeds the cap gets a batch
  * of its own with the HTML truncated (tag-boundary-aware, marker appended) so

@@ -19,6 +19,8 @@ export const envSchema = z
     GEMINI_API_KEY: z.string().optional(),
     /** Pins the Gemini model id; unset → the provider's rolling default (gemini-flash-latest). */
     GEMINI_MODEL: z.string().optional(),
+    /** Gemini thinking-token budget; unset → the provider's default (0 = no thinking). */
+    GEMINI_THINKING_BUDGET: z.coerce.number().int().nonnegative().optional(),
     /**
      * When unset, derived from GEMINI_API_KEY in the transform below:
      * key present → 'gemini', otherwise → 'stub'.
